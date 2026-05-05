@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>CookingSkillFix</AssemblyName>
+    <RootNamespace>CookingSkillFix</RootNamespace>
+    <LangVersion>9</LangVersion>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Don't include BepInEx/Unity in the output DLL — they're provided by the game -->
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- BepInEx core — provides BaseUnityPlugin, Harmony, Logging -->
+    <PackageReference Include="BepInEx.Core"              Version="5.*" />
+    <PackageReference Include="BepInEx.Analyzers"         Version="1.*" PrivateAssets="all" />
+
+    <!-- HarmonyX — shipped with BepInEx 5 but we reference it explicitly for types -->
+    <PackageReference Include="HarmonyX"                  Version="2.*" />
+
+    <!-- Valheim game assembly stubs — gives us Player, Skills, Recipe, ItemDrop, etc. -->
+    <!-- Published by the community specifically for CI builds, no game files needed  -->
+    <PackageReference Include="Valheim.GameAssemblies"    Version="0.*" />
+
+    <!-- UnityEngine stubs -->
+    <PackageReference Include="UnityEngine.Modules"       Version="2019.*" />
+  </ItemGroup>
+
+</Project>
