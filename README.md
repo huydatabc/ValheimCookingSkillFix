@@ -23,9 +23,8 @@ Valharvest, BoneAppetit, and Oh Honey.
 
 This fix scans all registered items at load time and corrects any item that has
 food stats (`m_food > 0`) but the wrong item type — but only if the item has a
-visible mesh on its prefab. This prevents accidentally unlocking placeholder or
-modelless items onto the serving tray. Covers all food mods automatically with
-no hardcoded item list.
+visible mesh on its prefab, and is not a vanilla item. Covers all food mods
+automatically with no hardcoded item list.
 
 ### 3. Valharvest food boxes as OdinsFoodBarrels containers
 Valharvest adds buildable food boxes (garlic, pepper, potato, tomato, salt,
@@ -42,11 +41,6 @@ Registered boxes:
 - `piece_tomatoBox` → tomato
 - `piece_saltBox` → salt
 - `piece_appleBox` → apple
-
-### 4. Remove Valharvest oven from build menu
-Vanilla Valheim now has its own oven (`piece_oven`), making Valharvest's
-`rk_oven` redundant. This fix removes it from all piece tables at load time
-so it no longer appears in the hammer build menu.
 
 ## Requirements
 
