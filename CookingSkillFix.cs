@@ -31,14 +31,9 @@ namespace CookingSkillFix
             Log = Logger;
             new Harmony(PluginGUID).PatchAll();
             Log.LogInfo("CookingSkillFix loaded.");
-
-            if (IsModLoaded("gravebear.odinsfoodbarrels"))
-                RegisterValharvestBoxes();
-            else
-                Log.LogInfo("CookingSkillFix: OdinsFoodBarrels not found, skipping food box fix.");
         }
 
-        private static void RegisterValharvestBoxes()
+        internal static void RegisterValharvestBoxes()
         {
             // OdinsFoodBarrels.RestrictContainers.SetContainerRestrictions takes a single
             // Dictionary<string, HashSet<string>> where keys use "$" + prefabName prefix.
@@ -109,6 +104,7 @@ namespace CookingSkillFix
             if (_done) return;
             _done = true;
 
+            // Fix 1: patch station crafting skills
             string[] stations = { "rk_griddle", "piece_prep_table", "piece_apiary" };
             foreach (string name in stations)
             {
@@ -120,6 +116,11 @@ namespace CookingSkillFix
                 station.m_craftingSkill = Skills.SkillType.Cooking;
                 Plugin.Log.LogInfo($"CookingSkillFix: Set {name} m_craftingSkill = Cooking.");
             }
+
+            // Fix 3: register Valharvest food boxes with OdinsFoodBarrels
+            // Done here (not in Awake) because OdinsFoodBarrels must be fully initialised first
+            if (Plugin.IsModLoaded("gravebear.odinsfoodbarrels"))
+                Plugin.RegisterValharvestBoxes();
         }
     }
 
