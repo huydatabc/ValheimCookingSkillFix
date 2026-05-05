@@ -20,11 +20,18 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Download reference DLLs
+        run: |
+          curl -L \
+            https://github.com/${{ github.repository }}/releases/download/refs/refs.zip \
+            -o refs.zip
+          unzip refs.zip -d refs/
+
       - name: Restore NuGet packages
-        run: dotnet restore CookingSkillFix.csproj
+        run: dotnet restore
 
       - name: Build
-        run: dotnet build CookingSkillFix.csproj --configuration Release --no-restore
+        run: dotnet build --configuration Release --no-restore
 
       - name: Upload DLL artifact
         uses: actions/upload-artifact@v4

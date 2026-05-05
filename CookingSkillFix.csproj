@@ -7,24 +7,23 @@
     <LangVersion>9</LangVersion>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <!-- Don't include BepInEx/Unity in the output DLL — they're provided by the game -->
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- BepInEx core — provides BaseUnityPlugin, Harmony, Logging -->
-    <PackageReference Include="BepInEx.Core"              Version="5.*" />
-    <PackageReference Include="BepInEx.Analyzers"         Version="1.*" PrivateAssets="all" />
+    <!-- From NuGet -->
+    <PackageReference Include="HarmonyX"   Version="2.*" />
+    <PackageReference Include="JotunnLib"  Version="2.*" />
 
-    <!-- HarmonyX — shipped with BepInEx 5 but we reference it explicitly for types -->
-    <PackageReference Include="HarmonyX"                  Version="2.*" />
-
-    <!-- Valheim game assembly stubs — gives us Player, Skills, Recipe, ItemDrop, etc. -->
-    <!-- Published by the community specifically for CI builds, no game files needed  -->
-    <PackageReference Include="Valheim.GameAssemblies"    Version="0.*" />
-
-    <!-- UnityEngine stubs -->
-    <PackageReference Include="UnityEngine.Modules"       Version="2019.*" />
+    <!-- From refs/ folder (uploaded as GitHub release asset) -->
+    <Reference Include="BepInEx">
+      <HintPath>refs/BepInEx.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="assembly_valheim">
+      <HintPath>refs/assembly_valheim.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
 </Project>
