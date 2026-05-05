@@ -24,6 +24,10 @@
       <HintPath>refs/assembly_valheim.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>refs/UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>refs/UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
