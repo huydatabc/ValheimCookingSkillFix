@@ -21,16 +21,14 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Restore NuGet packages
-        working-directory: src
-        run: dotnet restore
+        run: dotnet restore CookingSkillFix.csproj
 
       - name: Build
-        working-directory: src
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build CookingSkillFix.csproj --configuration Release --no-restore
 
       - name: Upload DLL artifact
         uses: actions/upload-artifact@v4
         with:
           name: CookingSkillFix
-          path: src/bin/Release/net48/CookingSkillFix.dll
+          path: bin/Release/net48/CookingSkillFix.dll
           if-no-files-found: error
