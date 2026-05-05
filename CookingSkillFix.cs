@@ -9,6 +9,7 @@ using UnityEngine;
 namespace CookingSkillFix
 {
     [BepInPlugin(PluginGUID, PluginName, PluginVersion)]
+    [BepInDependency("com.jotunn.jotunn", BepInDependency.DependencyFlags.HardDependency)]
     [BepInDependency("org.bepinex.plugins.cooking", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInDependency("gravebear.odinsfoodbarrels", BepInDependency.DependencyFlags.SoftDependency)]
     public class Plugin : BaseUnityPlugin
@@ -122,6 +123,7 @@ namespace CookingSkillFix
         public static void Fix(ObjectDB objectDb)
         {
             if ((UnityEngine.Object)(object)objectDb == (UnityEngine.Object)null) return;
+            if (objectDb.m_items == null || objectDb.m_items.Count == 0) return;
 
             int count = 0;
             foreach (GameObject itemPrefab in objectDb.m_items)
