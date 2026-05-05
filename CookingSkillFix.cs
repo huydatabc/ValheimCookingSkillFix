@@ -121,19 +121,19 @@ namespace CookingSkillFix
 
         public static void Fix(ObjectDB objectDb)
         {
-            if ((Object)(object)objectDb == (Object)null) return;
+            if ((UnityEngine.Object)(object)objectDb == (UnityEngine.Object)null) return;
 
             int count = 0;
             foreach (GameObject itemPrefab in objectDb.m_items)
             {
-                if ((Object)(object)itemPrefab == (Object)null) continue;
+                if ((UnityEngine.Object)(object)itemPrefab == (UnityEngine.Object)null) continue;
                 ItemDrop component = itemPrefab.GetComponent<ItemDrop>();
                 ItemDrop.ItemData.SharedData val = component?.m_itemData?.m_shared;
-                if ((Object)(object)component == (Object)null || val == null) continue;
+                if ((UnityEngine.Object)(object)component == (UnityEngine.Object)null || val == null) continue;
                 if (val.m_food <= 0f) continue;
                 if ((int)val.m_itemType == 2) continue; // already Material
                 if ((int)val.m_itemType != 4) continue; // only fix Consumable
-                string prefabName = ((Object)itemPrefab).name;
+                string prefabName = ((UnityEngine.Object)itemPrefab).name;
                 if (VanillaItems.Contains(prefabName)) continue;
                 val.m_itemType = ItemDrop.ItemData.ItemType.Material;
                 Plugin.Log.LogInfo($"CookingSkillFix: Fixed serving tray type for {prefabName}");
@@ -147,9 +147,9 @@ namespace CookingSkillFix
                 foreach (string name in new[] { "garlic", "pepper", "potato", "tomato", "salt", "apple" })
                 {
                     GameObject prefab = objectDb.GetItemPrefab(name);
-                    if ((Object)(object)prefab == (Object)null) continue;
+                    if ((UnityEngine.Object)(object)prefab == (UnityEngine.Object)null) continue;
                     ItemDrop drop = prefab.GetComponent<ItemDrop>();
-                    if ((Object)(object)drop == (Object)null) continue;
+                    if ((UnityEngine.Object)(object)drop == (UnityEngine.Object)null) continue;
                     drop.m_itemData.m_shared.m_maxStackSize = 10;
                 }
             }
@@ -163,16 +163,16 @@ namespace CookingSkillFix
         public static void Fix()
         {
             if (_done) return;
-            if ((Object)(object)ZNetScene.instance == (Object)null) return;
+            if ((UnityEngine.Object)(object)ZNetScene.instance == (UnityEngine.Object)null) return;
             _done = true;
 
             string[] stations = { "rk_griddle", "piece_prep_table", "piece_apiary" };
             foreach (string name in stations)
             {
                 GameObject prefab = ZNetScene.instance.GetPrefab(name);
-                if ((Object)(object)prefab == (Object)null) { Plugin.Log.LogWarning($"CookingSkillFix: Prefab not found: {name}"); continue; }
+                if ((UnityEngine.Object)(object)prefab == (UnityEngine.Object)null) { Plugin.Log.LogWarning($"CookingSkillFix: Prefab not found: {name}"); continue; }
                 CraftingStation station = prefab.GetComponent<CraftingStation>();
-                if ((Object)(object)station == (Object)null) { Plugin.Log.LogWarning($"CookingSkillFix: No CraftingStation on: {name}"); continue; }
+                if ((UnityEngine.Object)(object)station == (UnityEngine.Object)null) { Plugin.Log.LogWarning($"CookingSkillFix: No CraftingStation on: {name}"); continue; }
                 station.m_craftingSkill = Skills.SkillType.Cooking;
                 Plugin.Log.LogInfo($"CookingSkillFix: Set {name} m_craftingSkill = Cooking.");
             }
