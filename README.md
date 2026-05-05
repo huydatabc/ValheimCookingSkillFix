@@ -11,6 +11,7 @@ knows about vanilla station names. Custom stations added by other mods fall
 through to vanilla behaviour, giving **Crafting XP** instead of **Cooking XP**.
 
 Affected stations:
+- `piece_prep_table` — Valharvest prep table
 - `rk_griddle` — Valharvest stone griddle
 - `piece_apiary` — Oh Honey apiary
 

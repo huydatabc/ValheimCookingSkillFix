@@ -5,7 +5,6 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-  # Also lets you trigger manually from the Actions tab
   workflow_dispatch:
 
 jobs:
@@ -19,18 +18,19 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'   # .NET 8 SDK can target net48
+          dotnet-version: '8.0.x'
 
       - name: Restore NuGet packages
-        run: dotnet restore src/CookingSkillFix.csproj
+        working-directory: src
+        run: dotnet restore
 
       - name: Build
-        run: dotnet build src/CookingSkillFix.csproj --configuration Release --no-restore
+        working-directory: src
+        run: dotnet build --configuration Release --no-restore
 
       - name: Upload DLL artifact
         uses: actions/upload-artifact@v4
         with:
           name: CookingSkillFix
-          # net48 output folder
           path: src/bin/Release/net48/CookingSkillFix.dll
           if-no-files-found: error

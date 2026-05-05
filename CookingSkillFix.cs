@@ -34,8 +34,9 @@ internal static class ExtraStations
 {
     public static readonly HashSet<string> Names = new HashSet<string>
     {
-        "rk_griddle",
-        "piece_apiary",
+        "rk_griddle",       // Valharvest stone griddle
+        "piece_apiary",     // Oh Honey apiary
+        "piece_prep_table", // Valharvest preparation table
     };
 }
 
