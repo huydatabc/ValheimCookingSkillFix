@@ -49,7 +49,7 @@ namespace CookingSkillFix
                 Log.LogInfo("CookingSkillFix: OdinsFoodBarrels not found, skipping food box fix.");
         }
 
-        private static bool IsModLoaded(string guid)
+        internal static bool IsModLoaded(string guid)
         {
             foreach (var kv in BepInEx.Bootstrap.Chainloader.PluginInfos)
                 if (kv.Key == guid) return true;
@@ -70,47 +70,24 @@ namespace CookingSkillFix
                     }
                 }
 
-                if (odinAssembly == null)
-                {
-                    Log.LogWarning("CookingSkillFix: Could not find OdinsFoodBarrels assembly.");
-                    return;
-                }
+                if (odinAssembly == null) { Log.LogWarning("CookingSkillFix: OdinsFoodBarrels assembly not found."); return; }
 
                 Type? restrictionsType = odinAssembly.GetType("OdinsFoodBarrels.ContainerRestrictions");
                 if (restrictionsType == null)
                 {
                     foreach (Type t in odinAssembly.GetTypes())
-                    {
-                        if (t.GetMethod("SetContainerRestrictions") != null)
-                        {
-                            restrictionsType = t;
-                            break;
-                        }
-                    }
+                        if (t.GetMethod("SetContainerRestrictions") != null) { restrictionsType = t; break; }
                 }
+                if (restrictionsType == null) { Log.LogWarning("CookingSkillFix: ContainerRestrictions type not found."); return; }
 
-                if (restrictionsType == null)
-                {
-                    Log.LogWarning("CookingSkillFix: Could not find ContainerRestrictions type.");
-                    return;
-                }
-
-                MethodInfo? setMethod = restrictionsType.GetMethod(
-                    "SetContainerRestrictions",
-                    BindingFlags.Public | BindingFlags.Static | BindingFlags.NonPublic
-                );
-
-                if (setMethod == null)
-                {
-                    Log.LogWarning("CookingSkillFix: Could not find SetContainerRestrictions method.");
-                    return;
-                }
+                MethodInfo? setMethod = restrictionsType.GetMethod("SetContainerRestrictions",
+                    BindingFlags.Public | BindingFlags.Static | BindingFlags.NonPublic);
+                if (setMethod == null) { Log.LogWarning("CookingSkillFix: SetContainerRestrictions not found."); return; }
 
                 var parameters = setMethod.GetParameters();
                 Type dictType = parameters[1].ParameterType;
                 Type[] typeArgs = dictType.GetGenericArguments();
 
-                // Box → allowed item name, max stack size 10 (matches OdinsFoodBarrels vanilla barrels)
                 var boxes = new Dictionary<string, string>
                 {
                     { "piece_garlicBox", "garlic"  },
@@ -125,149 +102,114 @@ namespace CookingSkillFix
                 {
                     try
                     {
-                        // OdinsFoodBarrels uses Dictionary<string, HashSet<string>>
                         object dict = Activator.CreateInstance(dictType)!;
                         MethodInfo addMethod = dictType.GetMethod("Add")!;
-                        Type valueType = typeArgs[1]; // HashSet<string>
+                        Type valueType = typeArgs[1];
                         object allowedSet = Activator.CreateInstance(valueType)!;
                         valueType.GetMethod("Add")!.Invoke(allowedSet, new object[] { box.Value });
                         addMethod.Invoke(dict, new object[] { box.Key, allowedSet });
                         setMethod.Invoke(null, new object[] { box.Key, dict });
-                        Log.LogInfo($"CookingSkillFix: Registered {box.Key} -> {box.Value}");
+                        Log.LogInfo($"CookingSkillFix: Registered box {box.Key} -> {box.Value}");
                     }
-                    catch (Exception ex)
-                    {
-                        Log.LogWarning($"CookingSkillFix: Failed to register {box.Key}: {ex.Message}");
-                    }
+                    catch (Exception ex) { Log.LogWarning($"CookingSkillFix: Failed {box.Key}: {ex.Message}"); }
                 }
-
-                // Set stack size to 10 for Valharvest box items in ObjectDB
-                // We do this after OdinsFoodBarrels registers so we can find the prefabs
-                SetBoxStackSizes(10);
             }
-            catch (Exception ex)
-            {
-                Log.LogError("CookingSkillFix: Error registering Valharvest boxes: " + ex.Message);
-            }
-        }
-
-        private static void SetBoxStackSizes(int stackSize)
-        {
-            if (ObjectDB.instance == null) return;
-            var items = new[] { "garlic", "pepper", "potato", "tomato", "salt", "apple" };
-            foreach (string name in items)
-            {
-                GameObject? prefab = ObjectDB.instance.GetItemPrefab(name);
-                if (prefab == null) continue;
-                ItemDrop? drop = prefab.GetComponent<ItemDrop>();
-                if (drop == null) continue;
-                drop.m_itemData.m_shared.m_maxStackSize = stackSize;
-                Log.LogInfo($"CookingSkillFix: Set {name} stack size to {stackSize}");
-            }
+            catch (Exception ex) { Log.LogError("CookingSkillFix: Box registration error: " + ex.Message); }
         }
     }
 
     internal static class ExtraStations
     {
-        // Stations whose recipes should raise Skills.SkillType.Cooking.
-        // Smoothbrain's Cooking mod checks m_craftingSkill == Cooking on the station —
-        // custom stations from other mods never have that set, so we patch it in ourselves.
         public static readonly HashSet<string> Names = new HashSet<string>
         {
             "rk_griddle",        // Valharvest stone griddle
-            "piece_apiary",      // Oh Honey apiary
             "piece_prep_table",  // Valharvest preparation table
+                        "piece_apiary",      // Oh Honey apiary
         };
     }
 
     /// <summary>
-    /// Fix 1: Set m_craftingSkill = Cooking on custom stations at load time.
+    /// Fix 1: Set m_craftingSkill = Cooking on custom stations.
     ///
-    /// Smoothbrain's mod patches InventoryGui.DoCrafting and checks:
-    ///   m_craftRecipe.m_craftingStation.m_craftingSkill == Skills.SkillType.Cooking
-    /// If true it multiplies the skill raise by 5x. Our custom stations have
-    /// m_craftingSkill = None so they get no cooking XP at all.
+    /// Smoothbrain's mod checks m_craftingStation.m_craftingSkill == Cooking
+    /// in its DoCrafting transpiler. Custom stations never have this set.
     ///
-    /// We fix this by patching the station's m_craftingSkill field after ZNetScene
-    /// registers all prefabs.
+    /// We hook ZNetScene.Awake (fires after Jotunn registers custom prefabs)
+    /// to patch the station prefabs directly.
+    /// </summary>
+    [HarmonyPatch(typeof(ZNetScene), "Awake")]
+    internal static class ZNetScene_Awake_Patch
+    {
+        private static void Postfix(ZNetScene __instance)
+        {
+            foreach (string stationName in ExtraStations.Names)
+            {
+                GameObject? prefab = __instance.GetPrefab(stationName);
+                if (prefab == null)
+                {
+                    Plugin.Log.LogWarning($"CookingSkillFix: Prefab {stationName} not found in ZNetScene.");
+                    continue;
+                }
+                CraftingStation? station = prefab.GetComponent<CraftingStation>();
+                if (station == null)
+                {
+                    Plugin.Log.LogWarning($"CookingSkillFix: No CraftingStation component on {stationName}.");
+                    continue;
+                }
+                station.m_craftingSkill = Skills.SkillType.Cooking;
+                Plugin.Log.LogInfo($"CookingSkillFix: Set {stationName} m_craftingSkill = Cooking.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Fix 2: Serving tray compatibility.
+    ///
+    /// The serving tray filters by m_itemType == Material.
+    /// BUT Player.EatFood requires m_itemType == Consumable to eat.
+    /// So we CANNOT change m_itemType.
+    ///
+    /// Instead we patch ItemStand.CanAttach (the serving tray's item filter)
+    /// to also allow Consumable items that have food stats.
+    /// </summary>
+    [HarmonyPatch(typeof(ItemStand), "CanAttach")]
+    internal static class ItemStand_CanAttach_Patch
+    {
+        private static void Postfix(ItemStand __instance, ItemDrop.ItemData item, ref bool __result)
+        {
+            // Only act on the food item stand (serving tray)
+            if (__result) return;
+            if (!__instance.m_supportedTypes.Contains(ItemDrop.ItemData.ItemType.Material)) return;
+
+            // Allow Consumable food items with a visible prefab
+            if (item.m_shared.m_itemType == ItemDrop.ItemData.ItemType.Consumable
+                && item.m_shared.m_food > 0f)
+            {
+                __result = true;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Fix 3 (ObjectDB): Set stack sizes for box items to 10.
     /// </summary>
     [HarmonyPatch(typeof(ObjectDB), "Awake")]
     internal static class ObjectDB_Awake_Patch
     {
         private static void Postfix(ObjectDB __instance)
         {
-            // Fix 1: patch custom station craftingSkill
-            PatchStationSkills();
+            if (!Plugin.IsModLoaded("gravebear.odinsfoodbarrels")) return;
 
-            // Fix 2: serving tray compat
-            FixServingTray(__instance);
-        }
-
-        private static void PatchStationSkills()
-        {
-            foreach (string stationName in ExtraStations.Names)
+            var items = new[] { "garlic", "pepper", "potato", "tomato", "salt", "apple" };
+            foreach (string name in items)
             {
-                GameObject? prefab = PrefabManager_FindPrefab(stationName);
+                GameObject? prefab = __instance.GetItemPrefab(name);
                 if (prefab == null) continue;
-
-                CraftingStation? station = prefab.GetComponent<CraftingStation>();
-                if (station == null) continue;
-
-                station.m_craftingSkill = Skills.SkillType.Cooking;
-                Plugin.Log.LogInfo($"CookingSkillFix: Set {stationName} craftingSkill = Cooking");
-            }
-        }
-
-        private static GameObject? PrefabManager_FindPrefab(string name)
-        {
-            // Try ZNetScene first, then ObjectDB
-            if (ZNetScene.instance != null)
-            {
-                GameObject? go = ZNetScene.instance.GetPrefab(name);
-                if (go != null) return go;
-            }
-            return null;
-        }
-
-        private static void FixServingTray(ObjectDB instance)
-        {
-            int fixedCount = 0;
-
-            foreach (GameObject prefab in instance.m_items)
-            {
-                if (prefab == null) continue;
-
                 ItemDrop? drop = prefab.GetComponent<ItemDrop>();
                 if (drop == null) continue;
-
-                ItemDrop.ItemData.SharedData shared = drop.m_itemData.m_shared;
-
-                if (shared.m_food <= 0f) continue;
-                if (shared.m_itemType == ItemDrop.ItemData.ItemType.Material) continue;
-                if (!HasVisibleMesh(prefab)) continue;
-
-                string prefabName = ((UnityEngine.Object)prefab).name;
-                if (Plugin.VanillaItemNames.Contains(prefabName)) continue;
-
-                Plugin.Log.LogInfo(
-                    "CookingSkillFix: Fixing serving tray for " +
-                    prefabName + " (type was " + shared.m_itemType + ")"
-                );
-                shared.m_itemType = ItemDrop.ItemData.ItemType.Material;
-                fixedCount++;
+                drop.m_itemData.m_shared.m_maxStackSize = 10;
+                Plugin.Log.LogInfo($"CookingSkillFix: Set {name} stack size = 10");
             }
-
-            if (fixedCount > 0)
-                Plugin.Log.LogInfo("CookingSkillFix: Fixed serving tray compat for " + fixedCount + " items.");
-        }
-
-        private static bool HasVisibleMesh(GameObject go)
-        {
-            foreach (MeshRenderer r in go.GetComponentsInChildren<MeshRenderer>(false))
-                if (r.enabled) return true;
-            foreach (SkinnedMeshRenderer r in go.GetComponentsInChildren<SkinnedMeshRenderer>(false))
-                if (r.enabled) return true;
-            return false;
         }
     }
 }
