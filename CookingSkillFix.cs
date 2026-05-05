@@ -40,6 +40,9 @@ namespace CookingSkillFix
 
         private static void RegisterValharvestBoxes()
         {
+            // OdinsFoodBarrels.RestrictContainers.SetContainerRestrictions takes a single
+            // Dictionary<string, HashSet<string>> where keys use "$" + prefabName prefix.
+            // It REPLACES the whole dict, so we must read the existing one first and merge.
             try
             {
                 Assembly? odinAssembly = null;
@@ -48,21 +51,22 @@ namespace CookingSkillFix
 
                 if (odinAssembly == null) { Log.LogWarning("CookingSkillFix: OdinsFoodBarrels assembly not found."); return; }
 
-                Type? restrictionsType = odinAssembly.GetType("OdinsFoodBarrels.ContainerRestrictions");
-                if (restrictionsType == null)
-                    foreach (Type t in odinAssembly.GetTypes())
-                        if (t.GetMethod("SetContainerRestrictions") != null) { restrictionsType = t; break; }
-
-                if (restrictionsType == null) { Log.LogWarning("CookingSkillFix: ContainerRestrictions not found."); return; }
+                Type? restrictionsType = odinAssembly.GetType("OdinsFoodBarrels.RestrictContainers");
+                if (restrictionsType == null) { Log.LogWarning("CookingSkillFix: RestrictContainers type not found."); return; }
 
                 MethodInfo? setMethod = restrictionsType.GetMethod("SetContainerRestrictions",
                     BindingFlags.Public | BindingFlags.Static | BindingFlags.NonPublic);
                 if (setMethod == null) { Log.LogWarning("CookingSkillFix: SetContainerRestrictions not found."); return; }
 
-                var parameters = setMethod.GetParameters();
-                Type dictType = parameters[1].ParameterType;
-                Type[] typeArgs = dictType.GetGenericArguments();
+                // Read the existing _allowedItemsByContainer field so we can merge into it
+                FieldInfo? dictField = restrictionsType.GetField("_allowedItemsByContainer",
+                    BindingFlags.NonPublic | BindingFlags.Static);
+                if (dictField == null) { Log.LogWarning("CookingSkillFix: _allowedItemsByContainer field not found."); return; }
 
+                var existing = dictField.GetValue(null) as Dictionary<string, HashSet<string>>;
+                if (existing == null) { Log.LogWarning("CookingSkillFix: Could not read existing container restrictions."); return; }
+
+                // Valharvest box → allowed item (stack size 10, matching OdinsFoodBarrels vanilla barrels)
                 var boxes = new Dictionary<string, string>
                 {
                     { "piece_garlicBox", "garlic" },
@@ -74,20 +78,11 @@ namespace CookingSkillFix
                 };
 
                 foreach (var box in boxes)
-                {
-                    try
-                    {
-                        object dict = Activator.CreateInstance(dictType)!;
-                        MethodInfo addMethod = dictType.GetMethod("Add")!;
-                        Type valueType = typeArgs[1];
-                        object allowedSet = Activator.CreateInstance(valueType)!;
-                        valueType.GetMethod("Add")!.Invoke(allowedSet, new object[] { box.Value });
-                        addMethod.Invoke(dict, new object[] { box.Key, allowedSet });
-                        setMethod.Invoke(null, new object[] { box.Key, dict });
-                        Log.LogInfo($"CookingSkillFix: Registered box {box.Key} -> {box.Value}");
-                    }
-                    catch (Exception ex) { Log.LogWarning($"CookingSkillFix: Failed {box.Key}: {ex.Message}"); }
-                }
+                    existing["$" + box.Key] = new HashSet<string> { box.Value };
+
+                // Pass the merged dict back
+                setMethod.Invoke(null, new object[] { existing });
+                Log.LogInfo($"CookingSkillFix: Registered {boxes.Count} Valharvest food boxes with OdinsFoodBarrels.");
             }
             catch (Exception ex) { Log.LogError("CookingSkillFix: Box registration error: " + ex.Message); }
         }
