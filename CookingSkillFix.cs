@@ -77,43 +77,30 @@ namespace CookingSkillFix
         }
     }
 
-    /// <summary>
-    /// Fix 1: Set m_craftingSkill = Cooking on custom stations.
-    /// Fix 3: Register Valharvest food boxes with OdinsFoodBarrels.
-    /// Both run on ZNetScene.Awake — after all Jotunn prefabs are registered.
-    /// </summary>
-    [HarmonyPatch(typeof(ZNetScene), "Awake")]
-    internal static class ZNetScene_Awake_Patch
+    // Fix 1 + 3: station skill and box registration
+    // Using ObjectDB.Awake and CopyOtherDB — same hooks as Fix 2, known working
+    [HarmonyPatch(typeof(ObjectDB), "Awake")]
+    public static class ObjectDB_Awake_Patch
     {
-        private static void Postfix(ZNetScene __instance)
+        private static void Postfix(ObjectDB __instance)
         {
-            // Fix 1
-            string[] stations = { "rk_griddle", "piece_prep_table", "piece_apiary" };
-            foreach (string name in stations)
-            {
-                GameObject? prefab = __instance.GetPrefab(name);
-                if (prefab == null) { Plugin.Log.LogWarning($"CookingSkillFix: Prefab not found: {name}"); continue; }
-                CraftingStation? station = prefab.GetComponent<CraftingStation>();
-                if (station == null) { Plugin.Log.LogWarning($"CookingSkillFix: No CraftingStation on: {name}"); continue; }
-                station.m_craftingSkill = Skills.SkillType.Cooking;
-                Plugin.Log.LogInfo($"CookingSkillFix: Set {name} m_craftingSkill = Cooking.");
-            }
-
-            // Fix 3
-            if (Plugin.IsModLoaded("gravebear.odinsfoodbarrels"))
-                Plugin.RegisterValharvestBoxes();
+            FoodFixer.Fix(__instance);
+            StationFixer.Fix();
         }
     }
 
-    /// <summary>
-    /// Fix 2: Serving tray compatibility.
-    /// Vanilla food uses m_itemType = Material. Mod food uses Consumable, which
-    /// the serving tray rejects. We fix mod food items to use Material.
-    /// Runs on ObjectDB.CopyOtherDB which fires later than Awake and avoids
-    /// the MonoMod.Backports issue triggered by Awake patching.
-    /// </summary>
     [HarmonyPatch(typeof(ObjectDB), "CopyOtherDB")]
-    internal static class ObjectDB_CopyOtherDB_Patch
+    public static class ObjectDB_CopyOtherDB_Patch
+    {
+        private static void Postfix(ObjectDB __instance)
+        {
+            FoodFixer.Fix(__instance);
+        }
+    }
+
+    // Fix 2: serving tray — handled in ObjectDB_Awake_Patch and ObjectDB_CopyOtherDB_Patch above
+
+    public static class FoodFixer
     {
         private static readonly HashSet<string> VanillaItems = new HashSet<string>
         {
@@ -132,39 +119,66 @@ namespace CookingSkillFix
             "Sap","Egg","ChickenEgg","AsksvinEgg","VultureEgg",
         };
 
-        private static void Postfix(ObjectDB __instance)
+        public static void Fix(ObjectDB objectDb)
         {
+            if ((Object)(object)objectDb == (Object)null) return;
+
             int count = 0;
-            foreach (GameObject prefab in __instance.m_items)
+            foreach (GameObject itemPrefab in objectDb.m_items)
             {
-                if (prefab == null) continue;
-                ItemDrop? drop = prefab.GetComponent<ItemDrop>();
-                if (drop == null) continue;
-                var shared = drop.m_itemData.m_shared;
-                if (shared.m_food <= 0f) continue;
-                if (shared.m_itemType == ItemDrop.ItemData.ItemType.Material) continue;
-                if (shared.m_itemType != ItemDrop.ItemData.ItemType.Consumable) continue;
-                string prefabName = ((UnityEngine.Object)prefab).name;
+                if ((Object)(object)itemPrefab == (Object)null) continue;
+                ItemDrop component = itemPrefab.GetComponent<ItemDrop>();
+                ItemDrop.ItemData.SharedData val = component?.m_itemData?.m_shared;
+                if ((Object)(object)component == (Object)null || val == null) continue;
+                if (val.m_food <= 0f) continue;
+                if ((int)val.m_itemType == 2) continue; // already Material
+                if ((int)val.m_itemType != 4) continue; // only fix Consumable
+                string prefabName = ((Object)itemPrefab).name;
                 if (VanillaItems.Contains(prefabName)) continue;
-                shared.m_itemType = ItemDrop.ItemData.ItemType.Material;
+                val.m_itemType = ItemDrop.ItemData.ItemType.Material;
                 Plugin.Log.LogInfo($"CookingSkillFix: Fixed serving tray type for {prefabName}");
                 count++;
             }
             if (count > 0)
                 Plugin.Log.LogInfo($"CookingSkillFix: Fixed {count} items for serving tray.");
 
-            // Stack sizes for box items
             if (Plugin.IsModLoaded("gravebear.odinsfoodbarrels"))
             {
                 foreach (string name in new[] { "garlic", "pepper", "potato", "tomato", "salt", "apple" })
                 {
-                    GameObject? prefab = __instance.GetItemPrefab(name);
-                    if (prefab == null) continue;
-                    ItemDrop? drop = prefab.GetComponent<ItemDrop>();
-                    if (drop == null) continue;
+                    GameObject prefab = objectDb.GetItemPrefab(name);
+                    if ((Object)(object)prefab == (Object)null) continue;
+                    ItemDrop drop = prefab.GetComponent<ItemDrop>();
+                    if ((Object)(object)drop == (Object)null) continue;
                     drop.m_itemData.m_shared.m_maxStackSize = 10;
                 }
             }
+        }
+    }
+
+    public static class StationFixer
+    {
+        private static bool _done = false;
+
+        public static void Fix()
+        {
+            if (_done) return;
+            if ((Object)(object)ZNetScene.instance == (Object)null) return;
+            _done = true;
+
+            string[] stations = { "rk_griddle", "piece_prep_table", "piece_apiary" };
+            foreach (string name in stations)
+            {
+                GameObject prefab = ZNetScene.instance.GetPrefab(name);
+                if ((Object)(object)prefab == (Object)null) { Plugin.Log.LogWarning($"CookingSkillFix: Prefab not found: {name}"); continue; }
+                CraftingStation station = prefab.GetComponent<CraftingStation>();
+                if ((Object)(object)station == (Object)null) { Plugin.Log.LogWarning($"CookingSkillFix: No CraftingStation on: {name}"); continue; }
+                station.m_craftingSkill = Skills.SkillType.Cooking;
+                Plugin.Log.LogInfo($"CookingSkillFix: Set {name} m_craftingSkill = Cooking.");
+            }
+
+            if (Plugin.IsModLoaded("gravebear.odinsfoodbarrels"))
+                Plugin.RegisterValharvestBoxes();
         }
     }
 }
