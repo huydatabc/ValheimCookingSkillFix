@@ -19,14 +19,32 @@ namespace CookingSkillFix
 
         internal static ManualLogSource Log = null!;
 
+        // Vanilla item names that should never be touched by Fix 2.
+        // These are already Consumable type intentionally and the serving tray
+        // handles them fine without us changing their type.
+        internal static readonly HashSet<string> VanillaItemNames = new HashSet<string>
+        {
+            "Blueberries","Raspberry","Cloudberry","Carrot","Turnip","Onion","Barley",
+            "BarleyFlour","Flax","Mushroom","MushroomBlue","MushroomYellow","Thistle",
+            "Dandelion","Honey","RoyalJelly","FishRaw","SerpentMeat","NeckTail",
+            "DeerMeat","BoarMeat","WolfMeat","LoxMeat","ChickenMeat","HareMeat",
+            "BugMeat","CookedMeat","CookedDeerMeat","CookedBoarMeat","CookedLoxMeat",
+            "CookedWolfMeat","CookedChickenMeat","CookedHareMeat","CookedBugMeat",
+            "CookedFish","CookedSerpentMeat","NeckTailGrilled","CookedEgg",
+            "FishCooked","SerpentMeatCooked","BlackSoup","BloodPudding","Bread",
+            "CarrotSoup","DeerStew","FishWraps","LoxPie","MeatPlatter","MinotaurBroth",
+            "MisthareSupreme","MushroomOmelette","OnionSoup","QueensJam","Salad",
+            "SeekerAspic","ShocklateSmoothie","TurnipStew","WolfSkewer","YggdrasilPorridge",
+            "Eyescream","FishAndBread","FishNBread","MagecapDishSoup","JotunPuffs",
+            "Sap","Egg","ChickenEgg","AsksvinEgg","VultureEgg",
+        };
+
         private void Awake()
         {
             Log = Logger;
             new Harmony(PluginGUID).PatchAll();
             Log.LogInfo("CookingSkillFix loaded.");
 
-            // Fix 3: register Valharvest food boxes as OdinsFoodBarrels containers
-            // Must run after both mods have initialised, so we defer to next frame.
             if (IsModLoaded("gravebear.odinsfoodbarrels"))
                 RegisterValharvestBoxes();
             else
@@ -40,27 +58,10 @@ namespace CookingSkillFix
             return false;
         }
 
-        /// <summary>
-        /// Registers Valharvest's buildable food boxes with OdinsFoodBarrels'
-        /// ContainerRestrictions system so they behave like barrels — interact
-        /// to take items rather than build/deconstruct.
-        ///
-        /// Calls OdinsFoodBarrels.ContainerRestrictions.SetContainerRestrictions
-        /// via reflection since we don't have a direct reference to the assembly.
-        ///
-        /// Box → allowed item mapping (from Valharvest.dll strings):
-        ///   piece_garlicBox  → garlic
-        ///   piece_pepperBox  → pepper
-        ///   piece_potatoBox  → potato
-        ///   piece_tomatoBox  → tomato
-        ///   piece_saltBox    → salt
-        ///   piece_appleBox   → apple
-        /// </summary>
         private static void RegisterValharvestBoxes()
         {
             try
             {
-                // Find OdinsFoodBarrels assembly
                 Assembly? odinAssembly = null;
                 foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
                 {
@@ -77,11 +78,9 @@ namespace CookingSkillFix
                     return;
                 }
 
-                // Find ContainerRestrictions type
                 Type? restrictionsType = odinAssembly.GetType("OdinsFoodBarrels.ContainerRestrictions");
                 if (restrictionsType == null)
                 {
-                    // Try searching all types for the one with SetContainerRestrictions
                     foreach (Type t in odinAssembly.GetTypes())
                     {
                         if (t.GetMethod("SetContainerRestrictions") != null)
@@ -94,7 +93,7 @@ namespace CookingSkillFix
 
                 if (restrictionsType == null)
                 {
-                    Log.LogWarning("CookingSkillFix: Could not find ContainerRestrictions type in OdinsFoodBarrels.");
+                    Log.LogWarning("CookingSkillFix: Could not find ContainerRestrictions type.");
                     return;
                 }
 
@@ -109,7 +108,6 @@ namespace CookingSkillFix
                     return;
                 }
 
-                // Map of Valharvest box piece name -> allowed item prefab name
                 var boxes = new Dictionary<string, string>
                 {
                     { "piece_garlicBox", "garlic"  },
@@ -120,7 +118,6 @@ namespace CookingSkillFix
                     { "piece_appleBox",  "apple"   },
                 };
 
-                // Check what parameter types SetContainerRestrictions expects
                 var parameters = setMethod.GetParameters();
                 Log.LogInfo("CookingSkillFix: SetContainerRestrictions params: " +
                     string.Join(", ", Array.ConvertAll(parameters, p => p.ParameterType.Name)));
@@ -129,10 +126,12 @@ namespace CookingSkillFix
                 {
                     try
                     {
-                        // Try calling with (string containerName, List<string> allowedItems)
-                        // The allowed items list contains the single item this box holds
+                        // SetContainerRestrictions takes (string containerName, Dictionary<string, int> allowedItems)
+                        // where the dict maps item prefab name -> stack size
                         object allowedItems;
-                        if (parameters.Length >= 2 && parameters[1].ParameterType == typeof(List<string>))
+                        if (parameters.Length >= 2 && parameters[1].ParameterType == typeof(Dictionary<string, int>))
+                            allowedItems = new Dictionary<string, int> { { box.Value, 50 } };
+                        else if (parameters.Length >= 2 && parameters[1].ParameterType == typeof(List<string>))
                             allowedItems = new List<string> { box.Value };
                         else if (parameters.Length >= 2 && parameters[1].ParameterType == typeof(string[]))
                             allowedItems = new string[] { box.Value };
@@ -242,8 +241,8 @@ namespace CookingSkillFix
 
     /// <summary>
     /// Fix 2: Serving tray compatibility.
-    /// Fixes m_itemType on any food item with a visible mesh so the vanilla
-    /// serving tray accepts it.
+    /// Only touches items with m_food > 0, a visible mesh, AND that aren't
+    /// vanilla items (which are already handled correctly by the game).
     /// </summary>
     [HarmonyPatch(typeof(ObjectDB), "Awake")]
     internal static class ObjectDB_Awake_Patch
@@ -265,9 +264,14 @@ namespace CookingSkillFix
                 if (shared.m_itemType == ItemDrop.ItemData.ItemType.Material) continue;
                 if (!HasVisibleMesh(prefab)) continue;
 
+                string prefabName = ((UnityEngine.Object)prefab).name;
+
+                // Skip vanilla items — they work fine already
+                if (Plugin.VanillaItemNames.Contains(prefabName)) continue;
+
                 Plugin.Log.LogInfo(
                     "CookingSkillFix: Fixing serving tray for " +
-                    ((UnityEngine.Object)prefab).name + " (type was " + shared.m_itemType + ")"
+                    prefabName + " (type was " + shared.m_itemType + ")"
                 );
                 shared.m_itemType = ItemDrop.ItemData.ItemType.Material;
                 fixedCount++;
@@ -289,15 +293,23 @@ namespace CookingSkillFix
 
     /// <summary>
     /// Fix 4: Remove Valharvest's rk_oven from the buildable pieces list.
-    /// Vanilla now has its own oven (piece_oven), making rk_oven redundant.
-    /// We hook ZNetScene.Awake which fires after all pieces are registered,
-    /// and remove it from every PieceTable so it no longer appears in the
-    /// hammer build menu.
+    /// Hooks Piece.Awake instead of ZNetScene.Awake to avoid the
+    /// MonoMod.Backports crash. Removes rk_oven from its piece table
+    /// the first time any piece is instantiated (safe late hook point).
     /// </summary>
-    [HarmonyPatch(typeof(ZNetScene), "Awake")]
-    internal static class ZNetScene_Awake_Patch
+    [HarmonyPatch(typeof(FejdStartup), "Awake")]
+    internal static class FejdStartup_Awake_Patch
     {
+        private static bool _done = false;
+
         private static void Postfix()
+        {
+            if (_done) return;
+            _done = true;
+            RemoveOven();
+        }
+
+        private static void RemoveOven()
         {
             const string ovenPrefab = "rk_oven";
             int removedFrom = 0;
@@ -319,7 +331,7 @@ namespace CookingSkillFix
             if (removedFrom > 0)
                 Plugin.Log.LogInfo($"CookingSkillFix: Removed {ovenPrefab} from {removedFrom} piece table(s).");
             else
-                Plugin.Log.LogInfo($"CookingSkillFix: {ovenPrefab} not found in any piece table (may not be installed).");
+                Plugin.Log.LogInfo($"CookingSkillFix: {ovenPrefab} not found in any piece table.");
         }
     }
 }
