@@ -16,9 +16,6 @@ Fixed stations:
 - `piece_prep_table` — Valharvest preparation table
 - `piece_apiary` — Oh Honey apiary
 
-Note: `rk_oven` (Valharvest oven) is intentionally excluded — vanilla now has
-its own oven, making the Valharvest one redundant.
-
 ### 2. Serving tray compatibility
 The vanilla serving tray (`piece_itemstand_food`) rejects mod-added food items
 because they never have `m_itemType` set to `Material`. This affects food from
@@ -45,6 +42,11 @@ Registered boxes:
 - `piece_tomatoBox` → tomato
 - `piece_saltBox` → salt
 - `piece_appleBox` → apple
+
+### 4. Remove Valharvest oven from build menu
+Vanilla Valheim now has its own oven (`piece_oven`), making Valharvest's
+`rk_oven` redundant. This fix removes it from all piece tables at load time
+so it no longer appears in the hammer build menu.
 
 ## Requirements
 

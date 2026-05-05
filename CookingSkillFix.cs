@@ -183,7 +183,7 @@ namespace CookingSkillFix
             CraftingStation? station = __instance.GetCurrentCraftingStation();
             if (station == null) return;
 
-            string stationName = ((Object)station).name
+            string stationName = ((UnityEngine.Object)station).name
                 .Replace("(Clone)", "")
                 .Trim();
 
@@ -267,7 +267,7 @@ namespace CookingSkillFix
 
                 Plugin.Log.LogInfo(
                     "CookingSkillFix: Fixing serving tray for " +
-                    ((Object)prefab).name + " (type was " + shared.m_itemType + ")"
+                    ((UnityEngine.Object)prefab).name + " (type was " + shared.m_itemType + ")"
                 );
                 shared.m_itemType = ItemDrop.ItemData.ItemType.Material;
                 fixedCount++;
@@ -284,6 +284,42 @@ namespace CookingSkillFix
             foreach (SkinnedMeshRenderer r in go.GetComponentsInChildren<SkinnedMeshRenderer>(false))
                 if (r.enabled) return true;
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Fix 4: Remove Valharvest's rk_oven from the buildable pieces list.
+    /// Vanilla now has its own oven (piece_oven), making rk_oven redundant.
+    /// We hook ZNetScene.Awake which fires after all pieces are registered,
+    /// and remove it from every PieceTable so it no longer appears in the
+    /// hammer build menu.
+    /// </summary>
+    [HarmonyPatch(typeof(ZNetScene), "Awake")]
+    internal static class ZNetScene_Awake_Patch
+    {
+        private static void Postfix()
+        {
+            const string ovenPrefab = "rk_oven";
+            int removedFrom = 0;
+
+            foreach (PieceTable table in Resources.FindObjectsOfTypeAll<PieceTable>())
+            {
+                for (int i = table.m_pieces.Count - 1; i >= 0; i--)
+                {
+                    if (table.m_pieces[i] == null) continue;
+                    if (((UnityEngine.Object)table.m_pieces[i]).name
+                        .Replace("(Clone)", "").Trim() == ovenPrefab)
+                    {
+                        table.m_pieces.RemoveAt(i);
+                        removedFrom++;
+                    }
+                }
+            }
+
+            if (removedFrom > 0)
+                Plugin.Log.LogInfo($"CookingSkillFix: Removed {ovenPrefab} from {removedFrom} piece table(s).");
+            else
+                Plugin.Log.LogInfo($"CookingSkillFix: {ovenPrefab} not found in any piece table (may not be installed).");
         }
     }
 }
