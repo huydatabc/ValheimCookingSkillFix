@@ -4,7 +4,7 @@
     <TargetFramework>net48</TargetFramework>
     <AssemblyName>CookingSkillFix</AssemblyName>
     <RootNamespace>CookingSkillFix</RootNamespace>
-    <LangVersion>9</LangVersion>
+    <LangVersion>10</LangVersion>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
@@ -12,16 +12,20 @@
 
   <ItemGroup>
     <!-- From NuGet -->
-    <PackageReference Include="HarmonyX"   Version="2.*" />
-    <PackageReference Include="JotunnLib"  Version="2.*" />
+    <PackageReference Include="HarmonyX"  Version="2.*" />
+    <PackageReference Include="JotunnLib" Version="2.*" />
 
-    <!-- From refs/ folder (uploaded as GitHub release asset) -->
+    <!-- From refs/ (uploaded as individual files to the 'refs' GitHub release) -->
     <Reference Include="BepInEx">
       <HintPath>refs/BepInEx.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="assembly_valheim">
       <HintPath>refs/assembly_valheim.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>refs/UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
