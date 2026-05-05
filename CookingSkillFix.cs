@@ -19,6 +19,7 @@ namespace CookingSkillFix
 
         internal static ManualLogSource Log = null!;
 
+        // Vanilla items that Fix 2 should never touch.
         internal static readonly HashSet<string> VanillaItemNames = new HashSet<string>
         {
             "Blueberries","Raspberry","Cloudberry","Carrot","Turnip","Onion","Barley",
@@ -106,23 +107,10 @@ namespace CookingSkillFix
                 }
 
                 var parameters = setMethod.GetParameters();
-                Log.LogInfo("CookingSkillFix: SetContainerRestrictions params: " +
-                    string.Join(", ", Array.ConvertAll(parameters, p => p.ParameterType.FullName)));
-
-                if (parameters.Length < 2)
-                {
-                    Log.LogWarning("CookingSkillFix: Unexpected parameter count: " + parameters.Length);
-                    return;
-                }
-
-                // Build the allowed items argument dynamically using the actual type
-                // OdinsFoodBarrels uses Dictionary<string, T> where T is unknown — construct it via reflection
                 Type dictType = parameters[1].ParameterType;
                 Type[] typeArgs = dictType.GetGenericArguments();
 
-                Log.LogInfo("CookingSkillFix: Dict type args: " +
-                    string.Join(", ", Array.ConvertAll(typeArgs, t => t.FullName)));
-
+                // Box → allowed item name, max stack size 10 (matches OdinsFoodBarrels vanilla barrels)
                 var boxes = new Dictionary<string, string>
                 {
                     { "piece_garlicBox", "garlic"  },
@@ -137,16 +125,13 @@ namespace CookingSkillFix
                 {
                     try
                     {
-                        // Create a Dictionary<string, TValue> instance of the exact type OdinsFoodBarrels expects
+                        // OdinsFoodBarrels uses Dictionary<string, HashSet<string>>
                         object dict = Activator.CreateInstance(dictType)!;
                         MethodInfo addMethod = dictType.GetMethod("Add")!;
-
-                        // Default value for TValue — 0 for int, empty string for string, etc.
-                        object defaultValue = typeArgs.Length > 1
-                            ? (Activator.CreateInstance(typeArgs[1]) ?? "")
-                            : 0;
-
-                        addMethod.Invoke(dict, new object[] { box.Value, defaultValue });
+                        Type valueType = typeArgs[1]; // HashSet<string>
+                        object allowedSet = Activator.CreateInstance(valueType)!;
+                        valueType.GetMethod("Add")!.Invoke(allowedSet, new object[] { box.Value });
+                        addMethod.Invoke(dict, new object[] { box.Key, allowedSet });
                         setMethod.Invoke(null, new object[] { box.Key, dict });
                         Log.LogInfo($"CookingSkillFix: Registered {box.Key} -> {box.Value}");
                     }
@@ -155,16 +140,38 @@ namespace CookingSkillFix
                         Log.LogWarning($"CookingSkillFix: Failed to register {box.Key}: {ex.Message}");
                     }
                 }
+
+                // Set stack size to 10 for Valharvest box items in ObjectDB
+                // We do this after OdinsFoodBarrels registers so we can find the prefabs
+                SetBoxStackSizes(10);
             }
             catch (Exception ex)
             {
                 Log.LogError("CookingSkillFix: Error registering Valharvest boxes: " + ex.Message);
             }
         }
+
+        private static void SetBoxStackSizes(int stackSize)
+        {
+            if (ObjectDB.instance == null) return;
+            var items = new[] { "garlic", "pepper", "potato", "tomato", "salt", "apple" };
+            foreach (string name in items)
+            {
+                GameObject? prefab = ObjectDB.instance.GetItemPrefab(name);
+                if (prefab == null) continue;
+                ItemDrop? drop = prefab.GetComponent<ItemDrop>();
+                if (drop == null) continue;
+                drop.m_itemData.m_shared.m_maxStackSize = stackSize;
+                Log.LogInfo($"CookingSkillFix: Set {name} stack size to {stackSize}");
+            }
+        }
     }
 
     internal static class ExtraStations
     {
+        // Stations whose recipes should raise Skills.SkillType.Cooking.
+        // Smoothbrain's Cooking mod checks m_craftingSkill == Cooking on the station —
+        // custom stations from other mods never have that set, so we patch it in ourselves.
         public static readonly HashSet<string> Names = new HashSet<string>
         {
             "rk_griddle",        // Valharvest stone griddle
@@ -174,91 +181,59 @@ namespace CookingSkillFix
     }
 
     /// <summary>
-    /// Fix 1: Raises Smoothbrain's Cooking skill when crafting at a custom
-    /// cooking station that his mod doesn't know about.
-    /// </summary>
-    [HarmonyPatch(typeof(Player), "ConsumeResources")]
-    internal static class ConsumeResources_Patch
-    {
-        private static Skills.SkillType? _cookingSkillType = null;
-        private static bool _lookupFailed = false;
-
-        private static void Postfix(Player __instance)
-        {
-            if (_lookupFailed) return;
-
-            CraftingStation? station = __instance.GetCurrentCraftingStation();
-            if (station == null) return;
-
-            string stationName = ((UnityEngine.Object)station).name
-                .Replace("(Clone)", "")
-                .Trim();
-
-            if (!ExtraStations.Names.Contains(stationName)) return;
-
-            if (_cookingSkillType == null)
-            {
-                _cookingSkillType = FindCookingSkillType(__instance);
-                if (_cookingSkillType == null)
-                {
-                    _lookupFailed = true;
-                    Plugin.Log.LogWarning("CookingSkillFix: Could not find Cooking skill — is Smoothbrain's Cooking mod installed?");
-                    return;
-                }
-                Plugin.Log.LogInfo("CookingSkillFix: Found Cooking skill type = " + (int)_cookingSkillType.Value);
-            }
-
-            __instance.RaiseSkill(_cookingSkillType.Value, 1f);
-        }
-
-        private static Skills.SkillType? FindCookingSkillType(Player player)
-        {
-            Skills? skills = player?.GetSkills();
-            if (skills == null) return null;
-
-            FieldInfo? field = typeof(Skills).GetField("m_skills", BindingFlags.NonPublic | BindingFlags.Instance);
-            if (field == null) return null;
-
-            var defs = field.GetValue(skills) as List<Skills.SkillDef>;
-            if (defs == null) return null;
-
-            foreach (Skills.SkillDef def in defs)
-            {
-                int id = (int)def.m_skill;
-                if (id <= 100) continue;
-                string desc = def.m_description ?? "";
-                if (desc.IndexOf("cook", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    Plugin.Log.LogInfo("CookingSkillFix: Matched cooking skill: id=" + id + " desc=" + desc);
-                    return def.m_skill;
-                }
-            }
-
-            foreach (Skills.SkillDef def in defs)
-            {
-                if ((int)def.m_skill > 100)
-                {
-                    Plugin.Log.LogWarning("CookingSkillFix: Falling back to first custom skill id=" + (int)def.m_skill);
-                    return def.m_skill;
-                }
-            }
-
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Fix 2: Serving tray compatibility.
-    /// Only touches mod-added food items — vanilla items are skipped.
+    /// Fix 1: Set m_craftingSkill = Cooking on custom stations at load time.
+    ///
+    /// Smoothbrain's mod patches InventoryGui.DoCrafting and checks:
+    ///   m_craftRecipe.m_craftingStation.m_craftingSkill == Skills.SkillType.Cooking
+    /// If true it multiplies the skill raise by 5x. Our custom stations have
+    /// m_craftingSkill = None so they get no cooking XP at all.
+    ///
+    /// We fix this by patching the station's m_craftingSkill field after ZNetScene
+    /// registers all prefabs.
     /// </summary>
     [HarmonyPatch(typeof(ObjectDB), "Awake")]
     internal static class ObjectDB_Awake_Patch
     {
         private static void Postfix(ObjectDB __instance)
         {
+            // Fix 1: patch custom station craftingSkill
+            PatchStationSkills();
+
+            // Fix 2: serving tray compat
+            FixServingTray(__instance);
+        }
+
+        private static void PatchStationSkills()
+        {
+            foreach (string stationName in ExtraStations.Names)
+            {
+                GameObject? prefab = PrefabManager_FindPrefab(stationName);
+                if (prefab == null) continue;
+
+                CraftingStation? station = prefab.GetComponent<CraftingStation>();
+                if (station == null) continue;
+
+                station.m_craftingSkill = Skills.SkillType.Cooking;
+                Plugin.Log.LogInfo($"CookingSkillFix: Set {stationName} craftingSkill = Cooking");
+            }
+        }
+
+        private static GameObject? PrefabManager_FindPrefab(string name)
+        {
+            // Try ZNetScene first, then ObjectDB
+            if (ZNetScene.instance != null)
+            {
+                GameObject? go = ZNetScene.instance.GetPrefab(name);
+                if (go != null) return go;
+            }
+            return null;
+        }
+
+        private static void FixServingTray(ObjectDB instance)
+        {
             int fixedCount = 0;
 
-            foreach (GameObject prefab in __instance.m_items)
+            foreach (GameObject prefab in instance.m_items)
             {
                 if (prefab == null) continue;
 
