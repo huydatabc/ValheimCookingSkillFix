@@ -14,84 +14,109 @@ namespace CookingSkillFix
     [BepInDependency("gravebear.odinsfoodbarrels", BepInDependency.DependencyFlags.SoftDependency)]
     public class Plugin : BaseUnityPlugin
     {
-        public const string PluginGUID    = "fix.cookingskillfix";
-        public const string PluginName    = "CookingSkillFix";
-        public const string PluginVersion = "1.0.0";
+        public const string PluginGUID = "fix.cookingskillfix";
+        public const string PluginName = "CookingSkillFix";
+        public const string PluginVersion = "1.0.1";
 
         internal static ManualLogSource Log = null!;
-
-        internal static bool IsModLoaded(string guid)
-        {
-            foreach (var kv in BepInEx.Bootstrap.Chainloader.PluginInfos)
-                if (kv.Key == guid) return true;
-            return false;
-        }
 
         private void Awake()
         {
             Log = Logger;
-            new Harmony(PluginGUID).PatchAll();
+            Harmony harmony = new Harmony(PluginGUID);
+            harmony.PatchAll();
             Log.LogInfo("CookingSkillFix loaded.");
+        }
+
+        internal static bool IsModLoaded(string guid)
+        {
+            return BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey(guid);
         }
 
         internal static void RegisterValharvestBoxes()
         {
             try
             {
-                Assembly? odinAssembly = null;
-                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-                    if (asm.GetName().Name == "OdinsFoodBarrels") { odinAssembly = asm; break; }
+                Assembly odinAssembly = null;
 
-                if (odinAssembly == null) { Log.LogWarning("CookingSkillFix: OdinsFoodBarrels assembly not found."); return; }
+                foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    if (asm.GetName().Name == "OdinsFoodBarrels")
+                    {
+                        odinAssembly = asm;
+                        break;
+                    }
+                }
 
-                Type? restrictionsType = odinAssembly.GetType("OdinsFoodBarrels.RestrictContainers");
-                if (restrictionsType == null) { Log.LogWarning("CookingSkillFix: RestrictContainers not found."); return; }
+                if (odinAssembly == null)
+                {
+                    Log.LogWarning("OdinsFoodBarrels assembly not found.");
+                    return;
+                }
 
-                MethodInfo? setMethod = restrictionsType.GetMethod("SetContainerRestrictions",
-                    BindingFlags.Public | BindingFlags.Static | BindingFlags.NonPublic);
-                if (setMethod == null) { Log.LogWarning("CookingSkillFix: SetContainerRestrictions not found."); return; }
+                Type restrictionsType = odinAssembly.GetType("OdinsFoodBarrels.RestrictContainers");
 
-                FieldInfo? dictField = restrictionsType.GetField("_allowedItemsByContainer",
-                    BindingFlags.NonPublic | BindingFlags.Static);
-                if (dictField == null) { Log.LogWarning("CookingSkillFix: _allowedItemsByContainer not found."); return; }
+                if (restrictionsType == null)
+                {
+                    Log.LogWarning("RestrictContainers type not found.");
+                    return;
+                }
+
+                MethodInfo setMethod = restrictionsType.GetMethod(
+                    "SetContainerRestrictions",
+                    BindingFlags.Public |
+                    BindingFlags.NonPublic |
+                    BindingFlags.Static
+                );
+
+                FieldInfo dictField = restrictionsType.GetField(
+                    "_allowedItemsByContainer",
+                    BindingFlags.NonPublic |
+                    BindingFlags.Static
+                );
+
+                if (setMethod == null || dictField == null)
+                {
+                    Log.LogWarning("OdinsFoodBarrels reflection failed.");
+                    return;
+                }
 
                 var existing = dictField.GetValue(null) as Dictionary<string, HashSet<string>>;
-                if (existing == null) { Log.LogWarning("CookingSkillFix: Could not read container restrictions."); return; }
 
-                var boxes = new Dictionary<string, string>
+                if (existing == null)
+                {
+                    Log.LogWarning("Could not read restriction dictionary.");
+                    return;
+                }
+
+                Dictionary<string, string> boxes = new Dictionary<string, string>
                 {
                     { "piece_garlicBox", "garlic" },
                     { "piece_pepperBox", "pepper" },
                     { "piece_potatoBox", "potato" },
                     { "piece_tomatoBox", "tomato" },
-                    { "piece_saltBox",   "salt"   },
-                    { "piece_appleBox",  "apple"  },
+                    { "piece_saltBox", "salt" },
+                    { "piece_appleBox", "apple" }
                 };
 
-                foreach (var box in boxes)
-                    existing["$" + box.Key] = new HashSet<string> { box.Value };
+                foreach (KeyValuePair<string, string> kv in boxes)
+                {
+                    existing[kv.Key] = new HashSet<string> { kv.Value };
+                }
 
                 setMethod.Invoke(null, new object[] { existing });
-                Log.LogInfo($"CookingSkillFix: Registered {boxes.Count} Valharvest food boxes.");
+
+                Log.LogInfo($"Registered {boxes.Count} Valharvest food boxes.");
             }
-            catch (Exception ex) { Log.LogError("CookingSkillFix: Box registration error: " + ex.Message); }
+            catch (Exception ex)
+            {
+                Log.LogError($"RegisterValharvestBoxes error: {ex}");
+            }
         }
     }
 
-    // Fix 1 + 3: station skill and box registration
-    // Using ObjectDB.Awake and CopyOtherDB — same hooks as Fix 2, known working
-    [HarmonyPatch(typeof(ObjectDB), "Awake")]
-    public static class ObjectDB_Awake_Patch
-    {
-        private static void Postfix(ObjectDB __instance)
-        {
-            FoodFixer.Fix(__instance);
-            StationFixer.Fix();
-        }
-    }
-
-    [HarmonyPatch(typeof(ObjectDB), "CopyOtherDB")]
-    public static class ObjectDB_CopyOtherDB_Patch
+    [HarmonyPatch(typeof(ObjectDB), nameof(ObjectDB.Awake))]
+    public static class ObjectDBAwakePatch
     {
         private static void Postfix(ObjectDB __instance)
         {
@@ -99,88 +124,149 @@ namespace CookingSkillFix
         }
     }
 
-    // Fix 2: serving tray — handled in ObjectDB_Awake_Patch and ObjectDB_CopyOtherDB_Patch above
+    [HarmonyPatch(typeof(ObjectDB), nameof(ObjectDB.CopyOtherDB))]
+    public static class ObjectDBCopyPatch
+    {
+        private static void Postfix(ObjectDB __instance)
+        {
+            FoodFixer.Fix(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(ZNetScene), nameof(ZNetScene.Awake))]
+    public static class ZNetScenePatch
+    {
+        private static void Postfix(ZNetScene __instance)
+        {
+            StationFixer.Fix(__instance);
+        }
+    }
 
     public static class FoodFixer
     {
         private static readonly HashSet<string> VanillaItems = new HashSet<string>
         {
-            "Blueberries","Raspberry","Cloudberry","Carrot","Turnip","Onion","Barley",
-            "BarleyFlour","Flax","Mushroom","MushroomBlue","MushroomYellow","Thistle",
-            "Dandelion","Honey","RoyalJelly","FishRaw","SerpentMeat","NeckTail",
-            "DeerMeat","BoarMeat","WolfMeat","LoxMeat","ChickenMeat","HareMeat",
-            "BugMeat","CookedMeat","CookedDeerMeat","CookedBoarMeat","CookedLoxMeat",
-            "CookedWolfMeat","CookedChickenMeat","CookedHareMeat","CookedBugMeat",
-            "CookedFish","CookedSerpentMeat","NeckTailGrilled","CookedEgg",
-            "FishCooked","SerpentMeatCooked","BlackSoup","BloodPudding","Bread",
-            "CarrotSoup","DeerStew","FishWraps","LoxPie","MeatPlatter","MinotaurBroth",
-            "MisthareSupreme","MushroomOmelette","OnionSoup","QueensJam","Salad",
-            "SeekerAspic","ShocklateSmoothie","TurnipStew","WolfSkewer","YggdrasilPorridge",
-            "Eyescream","FishAndBread","FishNBread","MagecapDishSoup","JotunPuffs",
-            "Sap","Egg","ChickenEgg","AsksvinEgg","VultureEgg",
+            "Blueberries","Raspberry","Cloudberry","Carrot","Turnip","Onion",
+            "Barley","BarleyFlour","Flax","Mushroom","MushroomBlue",
+            "MushroomYellow","Thistle","Dandelion","Honey","RoyalJelly"
         };
 
         public static void Fix(ObjectDB objectDb)
         {
-            if ((UnityEngine.Object)(object)objectDb == (UnityEngine.Object)null) return;
-            if (objectDb.m_items == null || objectDb.m_items.Count == 0) return;
-
-            int count = 0;
-            foreach (GameObject itemPrefab in objectDb.m_items)
+            try
             {
-                if ((UnityEngine.Object)(object)itemPrefab == (UnityEngine.Object)null) continue;
-                ItemDrop component = itemPrefab.GetComponent<ItemDrop>();
-                ItemDrop.ItemData.SharedData val = component?.m_itemData?.m_shared;
-                if ((UnityEngine.Object)(object)component == (UnityEngine.Object)null || val == null) continue;
-                if (val.m_food <= 0f) continue;
-                if ((int)val.m_itemType == 2) continue; // already Material
-                if ((int)val.m_itemType != 4) continue; // only fix Consumable
-                string prefabName = ((UnityEngine.Object)itemPrefab).name;
-                if (VanillaItems.Contains(prefabName)) continue;
-                val.m_itemType = ItemDrop.ItemData.ItemType.Material;
-                Plugin.Log.LogInfo($"CookingSkillFix: Fixed serving tray type for {prefabName}");
-                count++;
-            }
-            if (count > 0)
-                Plugin.Log.LogInfo($"CookingSkillFix: Fixed {count} items for serving tray.");
+                if (objectDb == null || objectDb.m_items == null)
+                    return;
 
-            if (Plugin.IsModLoaded("gravebear.odinsfoodbarrels"))
-            {
-                foreach (string name in new[] { "garlic", "pepper", "potato", "tomato", "salt", "apple" })
+                int fixedCount = 0;
+
+                foreach (GameObject itemPrefab in objectDb.m_items)
                 {
-                    GameObject prefab = objectDb.GetItemPrefab(name);
-                    if ((UnityEngine.Object)(object)prefab == (UnityEngine.Object)null) continue;
-                    ItemDrop drop = prefab.GetComponent<ItemDrop>();
-                    if ((UnityEngine.Object)(object)drop == (UnityEngine.Object)null) continue;
-                    drop.m_itemData.m_shared.m_maxStackSize = 10;
+                    if (itemPrefab == null)
+                        continue;
+
+                    ItemDrop drop = itemPrefab.GetComponent<ItemDrop>();
+
+                    if (drop == null)
+                        continue;
+
+                    ItemDrop.ItemData.SharedData shared = drop.m_itemData.m_shared;
+
+                    if (shared == null)
+                        continue;
+
+                    if (shared.m_food <= 0f)
+                        continue;
+
+                    if (shared.m_itemType != ItemDrop.ItemData.ItemType.Consumable)
+                        continue;
+
+                    if (VanillaItems.Contains(itemPrefab.name))
+                        continue;
+
+                    MeshRenderer renderer = itemPrefab.GetComponentInChildren<MeshRenderer>();
+
+                    if (renderer == null)
+                        continue;
+
+                    shared.m_itemType = ItemDrop.ItemData.ItemType.Material;
+
+                    fixedCount++;
+
+                    Plugin.Log.LogInfo($"Fixed food item type: {itemPrefab.name}");
                 }
+
+                if (fixedCount > 0)
+                {
+                    Plugin.Log.LogInfo($"Fixed {fixedCount} modded food items.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogError($"FoodFixer error: {ex}");
             }
         }
     }
 
     public static class StationFixer
     {
-        private static bool _done = false;
+        private static bool _done;
 
-        public static void Fix()
+        public static void Fix(ZNetScene scene)
         {
-            if (_done) return;
-            if ((UnityEngine.Object)(object)ZNetScene.instance == (UnityEngine.Object)null) return;
-            _done = true;
-
-            string[] stations = { "rk_griddle", "piece_prep_table", "piece_apiary" };
-            foreach (string name in stations)
+            try
             {
-                GameObject prefab = ZNetScene.instance.GetPrefab(name);
-                if ((UnityEngine.Object)(object)prefab == (UnityEngine.Object)null) { Plugin.Log.LogWarning($"CookingSkillFix: Prefab not found: {name}"); continue; }
-                CraftingStation station = prefab.GetComponent<CraftingStation>();
-                if ((UnityEngine.Object)(object)station == (UnityEngine.Object)null) { Plugin.Log.LogWarning($"CookingSkillFix: No CraftingStation on: {name}"); continue; }
-                station.m_craftingSkill = Skills.SkillType.Cooking;
-                Plugin.Log.LogInfo($"CookingSkillFix: Set {name} m_craftingSkill = Cooking.");
-            }
+                if (_done || scene == null)
+                    return;
 
-            if (Plugin.IsModLoaded("gravebear.odinsfoodbarrels"))
-                Plugin.RegisterValharvestBoxes();
+                string[] stations =
+                {
+                    "rk_griddle",
+                    "piece_prep_table",
+                    "piece_apiary"
+                };
+
+                bool success = false;
+
+                foreach (string name in stations)
+                {
+                    GameObject prefab = scene.GetPrefab(name);
+
+                    if (prefab == null)
+                    {
+                        Plugin.Log.LogWarning($"Prefab not found: {name}");
+                        continue;
+                    }
+
+                    CraftingStation station = prefab.GetComponent<CraftingStation>();
+
+                    if (station == null)
+                    {
+                        Plugin.Log.LogWarning($"No CraftingStation on: {name}");
+                        continue;
+                    }
+
+                    station.m_craftingSkill = Skills.SkillType.Cooking;
+
+                    Plugin.Log.LogInfo($"Set crafting skill Cooking on {name}");
+
+                    success = true;
+                }
+
+                if (Plugin.IsModLoaded("gravebear.odinsfoodbarrels"))
+                {
+                    Plugin.RegisterValharvestBoxes();
+                }
+
+                if (success)
+                {
+                    _done = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogError($"StationFixer error: {ex}");
+            }
         }
     }
 }
