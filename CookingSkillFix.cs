@@ -183,19 +183,17 @@ namespace CookingSkillFix
             }
         }
 
-    [HarmonyPatch(typeof(InventoryGui), "OnCraftPressed")]
-    public static class ValharvestCookingXpPatch
+    [HarmonyPatch(typeof(Player), nameof(Player.RaiseSkill))]
+    public static class ConvertValharvestCraftingXp
     {
-        private static void Postfix()
+        private static void Prefix(Player __instance, ref Skills.SkillType skill)
         {
             try
             {
-                Player player = Player.m_localPlayer;
-
-                if (player == null)
+                if (skill != Skills.SkillType.Crafting)
                     return;
 
-                CraftingStation station = player.GetCurrentCraftingStation();
+                CraftingStation station = __instance.GetCurrentCraftingStation();
 
                 if (station == null)
                     return;
@@ -204,17 +202,17 @@ namespace CookingSkillFix
 
                 if (
                     prefab == "rk_griddle" ||
-                    prefab == "piece_prep_table"
+                    prefab == "rk_prep"
                 )
                 {
-                    player.RaiseSkill(Skills.SkillType.Cooking, 1f);
+                    skill = Skills.SkillType.Cooking;
 
-                    Plugin.Log.LogInfo($"Granted Cooking XP at {prefab}");
+                    Plugin.Log.LogInfo($"Converted Crafting XP to Cooking XP at {prefab}");
                 }
             }
             catch (Exception ex)
             {
-                Plugin.Log.LogError($"XP patch error: {ex}");
+                Plugin.Log.LogError($"Skill conversion error: {ex}");
             }
         }
     }
