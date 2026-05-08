@@ -110,7 +110,7 @@ namespace CookingSkillFix
                 foreach (var kv in boxes)
                 {
                     // Odin restriction registration
-                    dict["$" + kv.Key] =
+                    dict[kv.Key] =
                         new HashSet<string> { kv.Value };
 
                     // Reduce recipe cost from 50 -> 10
@@ -142,7 +142,7 @@ namespace CookingSkillFix
                             {
                                 container = prefab.AddComponent<Container>();
 
-                                container.m_name = "$" + kv.Key;
+                                container.m_name = $"{kv.Value} Box";
                                 container.m_width = 6;
                                 container.m_height = 2;
                                 container.m_checkGuardStone = false;
@@ -158,36 +158,36 @@ namespace CookingSkillFix
                         Log.LogInfo($"{kv.Key} container exists");
                     }
 
-                    Piece piece = prefab.GetComponent<Piece>();
-                    if (piece == null || piece.m_resources == null)
+                    Recipe recipe = prefab.GetComponent<Recipe>();
+
+                    if (recipe == null)
                     {
-                        Log.LogWarning($"No Piece/resources on: {kv.Key}");
+                        Log.LogWarning($"No Recipe on: {kv.Key}");
                         continue;
                     }
 
-                     foreach (Piece.Requirement req in piece.m_resources)
-                     {
-                         if (req == null || req.m_resItem == null)
-                             continue;
+                    if (recipe.m_resources == null)
+                    {
+                        Log.LogWarning($"No resources on recipe: {kv.Key}");
+                        continue;
+                    }
 
-                         string itemName = req.m_resItem.name;
+                    foreach (Piece.Requirement req in recipe.m_resources)
+                    {
+                        if (req == null || req.m_resItem == null)
+                            continue;
 
-                         if (itemName == "Wood")
-                         {
-                             req.m_amount = 1;
-                         }
-                         else
-                         {
-                             req.m_amount = 10;
-                         }
+                        string itemName = req.m_resItem.name;
 
-                         req.m_recover = true;
+                        if (itemName == "Wood")
+                            req.m_amount = 1;
+                        else
+                            req.m_amount = 10;
 
-                         Log.LogInfo(
-                             $"Changed recipe for {kv.Key}: " +
-                             $"{itemName} -> {req.m_amount}"
-                         );
-                     }
+                        req.m_recover = true;
+
+                        Log.LogInfo($"Recipe patched: {kv.Key} {itemName} -> {req.m_amount}");
+                    }
 
                     Log.LogInfo(
                         $"Registered Odin container: {kv.Key} -> {kv.Value}"
