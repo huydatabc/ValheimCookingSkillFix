@@ -205,4 +205,12 @@ namespace CookingSkillFix
             }
         }
     }
+    [HarmonyPatch(typeof(Player), "RaiseSkill")]
+    public static class DebugSkillPatch
+    {
+        private static void Prefix(Player __instance, Skills.SkillType skill, float factor)
+        {
+            Plugin.Log.LogInfo($"RaiseSkill fired: {skill} factor={factor}");
+        }
+    }
 }
