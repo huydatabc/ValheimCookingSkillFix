@@ -115,96 +115,12 @@ namespace CookingSkillFix
         }
     }
 
-    [HarmonyPatch(typeof(ObjectDB), "Awake")]
-    public static class ObjectDBAwakePatch
-    {
-        private static void Postfix(ObjectDB __instance)
-        {
-            FoodFixer.Fix(__instance);
-        }
-    }
-
-    [HarmonyPatch(typeof(ObjectDB), nameof(ObjectDB.CopyOtherDB))]
-    public static class ObjectDBCopyPatch
-    {
-        private static void Postfix(ObjectDB __instance)
-        {
-            FoodFixer.Fix(__instance);
-        }
-    }
-
-    [HarmonyPatch(typeof(ZNetScene), "Awake")]
+    [HarmonyPatch(typeof(ZNetScene), nameof(ZNetScene.Awake))]
     public static class ZNetScenePatch
     {
         private static void Postfix(ZNetScene __instance)
         {
             StationFixer.Fix(__instance);
-        }
-    }
-
-    public static class FoodFixer
-    {
-        private static readonly HashSet<string> VanillaItems = new HashSet<string>
-        {
-            "Blueberries","Raspberry","Cloudberry","Carrot","Turnip","Onion",
-            "Barley","BarleyFlour","Flax","Mushroom","MushroomBlue",
-            "MushroomYellow","Thistle","Dandelion","Honey","RoyalJelly"
-        };
-
-        public static void Fix(ObjectDB objectDb)
-        {
-            try
-            {
-                if (objectDb == null || objectDb.m_items == null)
-                    return;
-
-                int fixedCount = 0;
-
-                foreach (GameObject itemPrefab in objectDb.m_items)
-                {
-                    if (itemPrefab == null)
-                        continue;
-
-                    ItemDrop drop = itemPrefab.GetComponent<ItemDrop>();
-
-                    if (drop == null)
-                        continue;
-
-                    ItemDrop.ItemData.SharedData shared = drop.m_itemData.m_shared;
-
-                    if (shared == null)
-                        continue;
-
-                    if (shared.m_food <= 0f)
-                        continue;
-
-                    if (shared.m_itemType != ItemDrop.ItemData.ItemType.Consumable)
-                        continue;
-
-                    if (VanillaItems.Contains(itemPrefab.name))
-                        continue;
-
-                    MeshRenderer renderer = itemPrefab.GetComponentInChildren<MeshRenderer>();
-
-                    if (renderer == null)
-                        continue;
-
-                    shared.m_itemType = ItemDrop.ItemData.ItemType.Material;
-
-                    fixedCount++;
-
-                    Plugin.Log.LogInfo($"Fixed food item type: {itemPrefab.name}");
-                }
-
-                if (fixedCount > 0)
-                {
-                    Plugin.Log.LogInfo($"Fixed {fixedCount} modded food items.");
-                }
-            }
-            catch (Exception ex)
-            {
-                Plugin.Log.LogError($"FoodFixer error: {ex}");
-            }
         }
     }
 
@@ -238,19 +154,25 @@ namespace CookingSkillFix
                         continue;
                     }
 
-                    CraftingStation station = prefab.GetComponent<CraftingStation>();
+                    CraftingStation[] craftingStations =
+                        prefab.GetComponentsInChildren<CraftingStation>(true);
 
-                    if (station == null)
+                    if (craftingStations.Length == 0)
                     {
-                        Plugin.Log.LogWarning($"No CraftingStation on: {name}");
+                        Plugin.Log.LogWarning($"No CraftingStation found on: {name}");
                         continue;
                     }
 
-                    station.m_craftingSkill = Skills.SkillType.Cooking;
+                    foreach (CraftingStation station in craftingStations)
+                    {
+                        station.m_craftingSkill = Skills.SkillType.Cooking;
 
-                    Plugin.Log.LogInfo($"Set crafting skill Cooking on {name}");
+                        Plugin.Log.LogInfo(
+                            $"Set Cooking skill on {name} -> {station.gameObject.name}"
+                        );
 
-                    success = true;
+                        success = true;
+                    }
                 }
 
                 if (Plugin.IsModLoaded("gravebear.odinsfoodbarrels"))
