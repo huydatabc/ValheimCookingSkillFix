@@ -37,16 +37,9 @@ namespace CookingSkillFix
         {
             try
             {
-                Assembly odinAssembly = null;
-
-                foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    if (asm.GetName().Name == "OdinsFoodBarrels")
-                    {
-                        odinAssembly = asm;
-                        break;
-                    }
-                }
+                Assembly odinAssembly = AppDomain.CurrentDomain
+                    .GetAssemblies()
+                    .FirstOrDefault(a => a.GetName().Name == "OdinsFoodBarrels");
 
                 if (odinAssembly == null)
                 {
@@ -54,63 +47,76 @@ namespace CookingSkillFix
                     return;
                 }
 
-                Type restrictionsType = odinAssembly.GetType("OdinsFoodBarrels.RestrictContainers");
+                Type pluginType =
+                    odinAssembly.GetType("OdinsFoodBarrels.OdinsFoodBarrelsPlugin");
 
-                if (restrictionsType == null)
+                Type restrictType =
+                    odinAssembly.GetType("OdinsFoodBarrels.RestrictContainers");
+
+                if (pluginType == null || restrictType == null)
                 {
-                    Log.LogWarning("RestrictContainers type not found.");
+                    Log.LogWarning("Odin types not found.");
                     return;
                 }
 
-                MethodInfo setMethod = restrictionsType.GetMethod(
+                FieldInfo dictField = pluginType.GetField(
+                    "ContainerRestrictions",
+                    BindingFlags.Public |
+                    BindingFlags.NonPublic |
+                    BindingFlags.Static
+                );
+
+                MethodInfo setMethod = restrictType.GetMethod(
                     "SetContainerRestrictions",
                     BindingFlags.Public |
                     BindingFlags.NonPublic |
                     BindingFlags.Static
                 );
 
-                FieldInfo dictField = restrictionsType.GetField(
-                    "_allowedItemsByContainer",
-                    BindingFlags.NonPublic |
-                    BindingFlags.Static
-                );
-
-                if (setMethod == null || dictField == null)
+                if (dictField == null || setMethod == null)
                 {
-                    Log.LogWarning("OdinsFoodBarrels reflection failed.");
+                    Log.LogWarning("Reflection targets missing.");
                     return;
                 }
 
-                var existing = dictField.GetValue(null) as Dictionary<string, HashSet<string>>;
+                var dict =
+                    dictField.GetValue(null)
+                    as Dictionary<string, HashSet<string>>;
 
-                if (existing == null)
+                if (dict == null)
                 {
-                    Log.LogWarning("Could not read restriction dictionary.");
+                    Log.LogWarning("ContainerRestrictions is null.");
                     return;
                 }
 
-                Dictionary<string, string> boxes = new Dictionary<string, string>
+                Dictionary<string, string> boxes =
+                    new Dictionary<string, string>
                 {
-                    { "piece_garlicBox", "garlic" },
-                    { "piece_pepperBox", "pepper" },
-                    { "piece_potatoBox", "potato" },
-                    { "piece_tomatoBox", "tomato" },
-                    { "piece_saltBox", "salt" },
-                    { "piece_appleBox", "apple" }
+                    { "piece_garlicBox", "Garlic" },
+                    { "piece_pepperBox", "Pepper" },
+                    { "piece_potatoBox", "Potato" },
+                    { "piece_tomatoBox", "Tomato" },
+                    { "piece_saltBox", "Salt" },
+                    { "piece_appleBox", "Apple" }
                 };
 
-                foreach (KeyValuePair<string, string> kv in boxes)
+                foreach (var kv in boxes)
                 {
-                    existing[kv.Key] = new HashSet<string> { kv.Value };
+                    dict["$" + kv.Key] =
+                        new HashSet<string> { kv.Value };
+
+                    Log.LogInfo(
+                        $"Registered Odin container: {kv.Key} -> {kv.Value}"
+                    );
                 }
 
-                setMethod.Invoke(null, new object[] { existing });
+                setMethod.Invoke(null, new object[] { dict });
 
-                Log.LogInfo($"Registered {boxes.Count} Valharvest food boxes.");
+                Log.LogInfo("Valharvest Odin integration complete.");
             }
             catch (Exception ex)
             {
-                Log.LogError($"RegisterValharvestBoxes error: {ex}");
+                Log.LogError(ex);
             }
         }
     }
@@ -201,8 +207,8 @@ namespace CookingSkillFix
                 Plugin.Log.LogInfo($"Craft station: {name}");
 
                 if (
-                    name.Contains("rk_griddle") ||
-                    name.Contains("piece_prep_table")
+                    name.Contains("piece_prep_table") ||
+                    name.Contains("piece_cooking_pot")
                 )
                 {
                     Player.m_localPlayer.RaiseSkill(
