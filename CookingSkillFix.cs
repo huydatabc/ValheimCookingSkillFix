@@ -115,37 +115,105 @@ namespace CookingSkillFix
         }
     }
 
-   [HarmonyPatch(typeof(CraftingStation), "Start")]
-   public static class CraftingStation_Start_Patch
-   {
-       private static void Postfix(CraftingStation __instance)
-       {
-           try
-           {
-               if (__instance == null)
-                   return;
+   [HarmonyPatch(typeof(ZNetScene), "Awake")]
+    public static class ZNetScenePatch
+    {
+        private static void Postfix(ZNetScene __instance)
+        {
+            StationFixer.Fix(__instance);
+        }
+    }
+      public static class StationFixer
+        {
+            private static bool _done;
 
-               string name = __instance.name;
+            public static void Fix(ZNetScene scene)
+            {
+                try
+                {
+                    if (_done || scene == null)
+                        return;
 
-               Plugin.Log.LogInfo($"CraftingStation started: {name}");
+                    string[] stations =
+                    {
+                        "piece_apiary"
+                    };
 
-               if (
-                   name.Contains("rk_griddle") ||
-                   name.Contains("piece_prep_table") ||
-                   name.Contains("piece_apiary")
-               )
-               {
-                   __instance.m_craftingSkill = Skills.SkillType.Cooking;
+                    bool success = false;
 
-                   Plugin.Log.LogInfo(
-                       $"Set Cooking skill on runtime station: {name}"
-                   );
-               }
-           }
-           catch (Exception ex)
-           {
-               Plugin.Log.LogError($"CraftingStation patch error: {ex}");
-           }
-       }
+                    foreach (string name in stations)
+                    {
+                        GameObject prefab = scene.GetPrefab(name);
+
+                        if (prefab == null)
+                        {
+                            Plugin.Log.LogWarning($"Prefab not found: {name}");
+                            continue;
+                        }
+
+                        CraftingStation station = prefab.GetComponent<CraftingStation>();
+
+                        if (station == null)
+                        {
+                            Plugin.Log.LogWarning($"No CraftingStation on: {name}");
+                            continue;
+                        }
+
+                        station.m_craftingSkill = Skills.SkillType.Cooking;
+
+                        Plugin.Log.LogInfo($"Set crafting skill Cooking on {name}");
+
+                        success = true;
+                    }
+
+                    if (Plugin.IsModLoaded("gravebear.odinsfoodbarrels"))
+                    {
+                        Plugin.RegisterValharvestBoxes();
+                    }
+
+                    if (success)
+                    {
+                        _done = true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Plugin.Log.LogError($"StationFixer error: {ex}");
+                }
+            }
+        }
+
+    [HarmonyPatch(typeof(InventoryGui), nameof(InventoryGui.DoCrafting))]
+    public static class ValharvestCookingXpPatch
+    {
+        private static void Postfix(Player player)
+        {
+            try
+            {
+                if (player == null)
+                    return;
+
+                CraftingStation station = player.GetCurrentCraftingStation();
+
+                if (station == null)
+                    return;
+
+                string prefab = Utils.GetPrefabName(station.gameObject);
+
+                if (
+                    prefab == "rk_griddle" ||
+                    prefab == "piece_prep_table"
+                )
+                {
+                    player.m_nview.InvokeRPC("Cooking IncreaseSkill", 1f);
+
+                    Plugin.Log.LogInfo($"Granted Cooking XP at {prefab}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogError($"XP patch error: {ex}");
+            }
+        }
     }
 }
