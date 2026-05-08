@@ -115,7 +115,7 @@ namespace CookingSkillFix
         }
     }
 
-    [HarmonyPatch(typeof(ObjectDB), nameof(ObjectDB.Awake))]
+    [HarmonyPatch(typeof(ObjectDB), "Awake")]
     public static class ObjectDBAwakePatch
     {
         private static void Postfix(ObjectDB __instance)
@@ -133,7 +133,7 @@ namespace CookingSkillFix
         }
     }
 
-    [HarmonyPatch(typeof(ZNetScene), nameof(ZNetScene.Awake))]
+    [HarmonyPatch(typeof(ZNetScene), "Awake")]
     public static class ZNetScenePatch
     {
         private static void Postfix(ZNetScene __instance)
