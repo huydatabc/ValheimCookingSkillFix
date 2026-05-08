@@ -200,7 +200,7 @@ namespace CookingSkillFix
                 if (station == null)
                     return;
 
-                string prefab = Utils.GetPrefabName(station.gameObject);
+                string prefab = station.gameObject.name.Replace("(Clone)", "");
 
                 if (
                     prefab == "rk_griddle" ||
