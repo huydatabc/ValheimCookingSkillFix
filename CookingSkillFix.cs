@@ -142,7 +142,7 @@ namespace CookingSkillFix
                             {
                                 container = prefab.AddComponent<Container>();
 
-                                container.m_name = prefab.name;
+                                container.m_name = "$" + kv.Key;
                                 container.m_width = 6;
                                 container.m_height = 2;
                                 container.m_checkGuardStone = false;
