@@ -183,13 +183,15 @@ namespace CookingSkillFix
             }
         }
 
-    [HarmonyPatch(typeof(InventoryGui), nameof(InventoryGui.DoCrafting))]
+    [HarmonyPatch(typeof(InventoryGui), "OnCraftPressed")]
     public static class ValharvestCookingXpPatch
     {
-        private static void Postfix(Player player)
+        private static void Postfix()
         {
             try
             {
+                Player player = Player.m_localPlayer;
+
                 if (player == null)
                     return;
 
@@ -205,7 +207,7 @@ namespace CookingSkillFix
                     prefab == "piece_prep_table"
                 )
                 {
-                    player.m_nview.InvokeRPC("Cooking IncreaseSkill", 1f);
+                    player.RaiseSkill(Skills.SkillType.Cooking, 1f);
 
                     Plugin.Log.LogInfo($"Granted Cooking XP at {prefab}");
                 }
