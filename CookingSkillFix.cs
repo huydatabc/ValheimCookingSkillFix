@@ -134,14 +134,6 @@ namespace CookingSkillFix
                     }
 
                     Piece piece = prefab.GetComponent<Piece>();
-
-                    if (piece == null || piece.m_resources == null)
-                    {
-                        Log.LogWarning($"No Piece/resources on: {kv.Key}");
-                        continue;
-}
-                    Piece piece = prefab.GetComponent<Piece>();
-
                     if (piece == null || piece.m_resources == null)
                     {
                         Log.LogWarning($"No Piece/resources on: {kv.Key}");
