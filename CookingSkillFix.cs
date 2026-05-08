@@ -115,7 +115,7 @@ namespace CookingSkillFix
         }
     }
 
-    [HarmonyPatch(typeof(ZNetScene), nameof(ZNetScene.Awake))]
+    [HarmonyPatch(typeof(ZNetScene), "Awake")]
     public static class ZNetScenePatch
     {
         private static void Postfix(ZNetScene __instance)
