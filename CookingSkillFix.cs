@@ -115,80 +115,37 @@ namespace CookingSkillFix
         }
     }
 
-    [HarmonyPatch(typeof(ZNetScene), "Awake")]
-    public static class ZNetScenePatch
-    {
-        private static void Postfix(ZNetScene __instance)
-        {
-            StationFixer.Fix(__instance);
-        }
-    }
+   [HarmonyPatch(typeof(CraftingStation), "Start")]
+   public static class CraftingStation_Start_Patch
+   {
+       private static void Postfix(CraftingStation __instance)
+       {
+           try
+           {
+               if (__instance == null)
+                   return;
 
-    public static class StationFixer
-    {
-        private static bool _done;
+               string name = __instance.name;
 
-        public static void Fix(ZNetScene scene)
-        {
-            try
-            {
-                if (_done || scene == null)
-                    return;
+               Plugin.Log.LogInfo($"CraftingStation started: {name}");
 
-                string[] stations =
-                {
-                    "rk_griddle",
-                    "piece_prep_table",
-                    "piece_apiary"
-                };
+               if (
+                   name.Contains("rk_griddle") ||
+                   name.Contains("piece_prep_table") ||
+                   name.Contains("piece_apiary")
+               )
+               {
+                   __instance.m_craftingSkill = Skills.SkillType.Cooking;
 
-                bool success = false;
-
-                foreach (string name in stations)
-                {
-                    GameObject prefab = scene.GetPrefab(name);
-
-                    if (prefab == null)
-                    {
-                        Plugin.Log.LogWarning($"Prefab not found: {name}");
-                        continue;
-                    }
-
-                    CraftingStation[] craftingStations =
-                        prefab.GetComponentsInChildren<CraftingStation>(true);
-
-                    if (craftingStations.Length == 0)
-                    {
-                        Plugin.Log.LogWarning($"No CraftingStation found on: {name}");
-                        continue;
-                    }
-
-                    foreach (CraftingStation station in craftingStations)
-                    {
-                        station.m_craftingSkill = Skills.SkillType.Cooking;
-
-                        Plugin.Log.LogInfo(
-                            $"Set Cooking skill on {name} -> {station.gameObject.name}"
-                        );
-
-                        success = true;
-                    }
-                }
-
-                if (Plugin.IsModLoaded("gravebear.odinsfoodbarrels"))
-                {
-                    Plugin.RegisterValharvestBoxes();
-                }
-
-                if (success)
-                {
-                    _done = true;
-                }
-            }
-            catch (Exception ex)
-            {
-                Plugin.Log.LogError($"StationFixer error: {ex}");
-            }
-        }
+                   Plugin.Log.LogInfo(
+                       $"Set Cooking skill on runtime station: {name}"
+                   );
+               }
+           }
+           catch (Exception ex)
+           {
+               Plugin.Log.LogError($"CraftingStation patch error: {ex}");
+           }
+       }
     }
 }
