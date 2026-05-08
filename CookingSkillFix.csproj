@@ -12,12 +12,15 @@
 
   <ItemGroup>
     <!-- From NuGet -->
-    <PackageReference Include="HarmonyX"  Version="2.*" />
     <PackageReference Include="JotunnLib" Version="2.*" />
 
     <!-- From refs/ (uploaded as individual files to the 'refs' GitHub release) -->
     <Reference Include="BepInEx">
       <HintPath>refs/BepInEx.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>refs/0Harmony.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="assembly_valheim">
