@@ -183,28 +183,6 @@ namespace CookingSkillFix
             }
         }
 
-    [HarmonyPatch(typeof(Player), nameof(Player.RaiseSkill))]
-    public static class DebugSkillPatch
-    {
-        private static void Prefix(Player __instance, Skills.SkillType skill, float factor = 1f)
-        {
-            try
-            {
-                string station = "none";
-
-                CraftingStation current = __instance.GetCurrentCraftingStation();
-
-                if (current != null)
-                    station = current.gameObject.name;
-
-                Plugin.Log.LogInfo($"RaiseSkill: {skill} factor={factor} station={station}");
-            }
-            catch (Exception ex)
-            {
-                Plugin.Log.LogError(ex);
-            }
-        }
-    }
     [HarmonyPatch(typeof(Player), "RaiseSkill")]
     public static class DebugSkillPatch
     {
