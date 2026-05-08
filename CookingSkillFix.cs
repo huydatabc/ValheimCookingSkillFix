@@ -109,8 +109,40 @@ namespace CookingSkillFix
 
                 foreach (var kv in boxes)
                 {
+                    // Odin restriction registration
                     dict["$" + kv.Key] =
                         new HashSet<string> { kv.Value };
+
+                    // Reduce recipe cost from 50 -> 10
+                    GameObject prefab = ZNetScene.instance?.GetPrefab(kv.Key);
+
+                    if (prefab == null)
+                    {
+                        Log.LogWarning($"Prefab not found: {kv.Key}");
+                        continue;
+                    }
+
+                    Piece piece = prefab.GetComponent<Piece>();
+
+                    if (piece == null || piece.m_resources == null)
+                    {
+                        Log.LogWarning($"No Piece/resources on: {kv.Key}");
+                        continue;
+                    }
+
+                    foreach (Piece.Requirement req in piece.m_resources)
+                    {
+                        if (req == null || req.m_resItem == null)
+                            continue;
+
+                        req.m_amount = 10;
+                        req.m_recover = true;
+
+                        Log.LogInfo(
+                            $"Changed recipe for {kv.Key}: " +
+                            $"{req.m_resItem.name} -> 10"
+                        );
+                    }
 
                     Log.LogInfo(
                         $"Registered Odin container: {kv.Key} -> {kv.Value}"
