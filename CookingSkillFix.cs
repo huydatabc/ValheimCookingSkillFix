@@ -184,35 +184,24 @@ namespace CookingSkillFix
         }
 
     [HarmonyPatch(typeof(Player), nameof(Player.RaiseSkill))]
-    public static class ConvertValharvestCraftingXp
+    public static class DebugSkillPatch
     {
-        private static void Prefix(Player __instance, ref Skills.SkillType skill)
+        private static void Prefix(Player __instance, Skills.SkillType skill, float factor = 1f)
         {
             try
             {
-                if (skill != Skills.SkillType.Crafting)
-                    return;
+                string station = "none";
 
-                CraftingStation station = __instance.GetCurrentCraftingStation();
+                CraftingStation current = __instance.GetCurrentCraftingStation();
 
-                if (station == null)
-                    return;
+                if (current != null)
+                    station = current.gameObject.name;
 
-                string prefab = station.gameObject.name.Replace("(Clone)", "");
-
-                if (
-                    prefab == "rk_griddle" ||
-                    prefab == "rk_prep"
-                )
-                {
-                    skill = Skills.SkillType.Cooking;
-
-                    Plugin.Log.LogInfo($"Converted Crafting XP to Cooking XP at {prefab}");
-                }
+                Plugin.Log.LogInfo($"RaiseSkill: {skill} factor={factor} station={station}");
             }
             catch (Exception ex)
             {
-                Plugin.Log.LogError($"Skill conversion error: {ex}");
+                Plugin.Log.LogError(ex);
             }
         }
     }
