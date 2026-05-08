@@ -122,6 +122,24 @@ namespace CookingSkillFix
                         continue;
                     }
 
+                    Container container = prefab.GetComponent<Container>();
+
+                    if (container == null)
+                    {
+                        Log.LogWarning($"{kv.Key} has NO Container component");
+                    }
+                    else
+                    {
+                        Log.LogInfo($"{kv.Key} container exists");
+                    }
+
+                    Piece piece = prefab.GetComponent<Piece>();
+
+                    if (piece == null || piece.m_resources == null)
+                    {
+                        Log.LogWarning($"No Piece/resources on: {kv.Key}");
+                        continue;
+}
                     Piece piece = prefab.GetComponent<Piece>();
 
                     if (piece == null || piece.m_resources == null)
