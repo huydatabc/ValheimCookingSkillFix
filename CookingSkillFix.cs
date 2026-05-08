@@ -37,9 +37,16 @@ namespace CookingSkillFix
         {
             try
             {
-                Assembly odinAssembly = AppDomain.CurrentDomain
-                    .GetAssemblies()
-                    .FirstOrDefault(a => a.GetName().Name == "OdinsFoodBarrels");
+                Assembly odinAssembly = null;
+
+                foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    if (asm.GetName().Name == "OdinsFoodBarrels")
+                    {
+                        odinAssembly = asm;
+                        break;
+                    }
+                }
 
                 if (odinAssembly == null)
                 {
