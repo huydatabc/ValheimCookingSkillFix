@@ -183,12 +183,42 @@ namespace CookingSkillFix
             }
         }
 
-    [HarmonyPatch(typeof(Player), "RaiseSkill")]
-    public static class DebugSkillPatch
+    [HarmonyPatch(typeof(InventoryGui), "OnCraftPressed")]
+    public static class CookingXpPatch
     {
-        private static void Prefix(Player __instance, Skills.SkillType skill, float factor)
+        private static void Prefix(InventoryGui __instance)
         {
-            Plugin.Log.LogInfo($"RaiseSkill fired: {skill} factor={factor}");
+            try
+            {
+                CraftingStation station = Player.m_localPlayer?
+                    .GetCurrentCraftingStation();
+
+                if (station == null)
+                    return;
+
+                string name = station.gameObject.name;
+
+                Plugin.Log.LogInfo($"Craft station: {name}");
+
+                if (
+                    name.Contains("rk_griddle") ||
+                    name.Contains("piece_prep_table")
+                )
+                {
+                    Player.m_localPlayer.RaiseSkill(
+                        Skills.SkillType.Cooking,
+                        1f
+                    );
+
+                    Plugin.Log.LogInfo(
+                        $"Granted cooking XP at {name}"
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogError(ex);
+            }
         }
     }
 }
