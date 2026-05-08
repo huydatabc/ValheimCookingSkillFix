@@ -126,7 +126,32 @@ namespace CookingSkillFix
 
                     if (container == null)
                     {
-                        Log.LogWarning($"{kv.Key} has NO Container component");
+                        GameObject chestPrefab =
+                            ZNetScene.instance.GetPrefab("piece_chest");
+
+                        if (chestPrefab == null)
+                        {
+                            Log.LogWarning("piece_chest prefab not found");
+                        }
+                        else
+                        {
+                            Container chestContainer =
+                                chestPrefab.GetComponent<Container>();
+
+                            if (chestContainer != null)
+                            {
+                                container = prefab.AddComponent<Container>();
+
+                                container.m_name = prefab.name;
+                                container.m_width = 6;
+                                container.m_height = 2;
+                                container.m_checkGuardStone = false;
+
+                                Log.LogInfo(
+                                    $"Added Container component to {kv.Key}"
+                                );
+                            }
+                        }
                     }
                     else
                     {
@@ -140,19 +165,29 @@ namespace CookingSkillFix
                         continue;
                     }
 
-                    foreach (Piece.Requirement req in piece.m_resources)
-                    {
-                        if (req == null || req.m_resItem == null)
-                            continue;
+                     foreach (Piece.Requirement req in piece.m_resources)
+                     {
+                         if (req == null || req.m_resItem == null)
+                             continue;
 
-                        req.m_amount = 10;
-                        req.m_recover = true;
+                         string itemName = req.m_resItem.name;
 
-                        Log.LogInfo(
-                            $"Changed recipe for {kv.Key}: " +
-                            $"{req.m_resItem.name} -> 10"
-                        );
-                    }
+                         if (itemName == "Wood")
+                         {
+                             req.m_amount = 1;
+                         }
+                         else
+                         {
+                             req.m_amount = 10;
+                         }
+
+                         req.m_recover = true;
+
+                         Log.LogInfo(
+                             $"Changed recipe for {kv.Key}: " +
+                             $"{itemName} -> {req.m_amount}"
+                         );
+                     }
 
                     Log.LogInfo(
                         $"Registered Odin container: {kv.Key} -> {kv.Value}"
