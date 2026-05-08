@@ -4,45 +4,34 @@
     <TargetFramework>net48</TargetFramework>
     <AssemblyName>CookingSkillFix</AssemblyName>
     <RootNamespace>CookingSkillFix</RootNamespace>
-    <LangVersion>latest</LangVersion>
+    <LangVersion>10</LangVersion>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>
-
-    <!-- Jotunn from NuGet is fine -->
+    <!-- From NuGet -->
+    <PackageReference Include="HarmonyX"  Version="2.*" />
     <PackageReference Include="JotunnLib" Version="2.*" />
 
-    <!-- BepInEx -->
+    <!-- From refs/ (uploaded as individual files to the 'refs' GitHub release) -->
     <Reference Include="BepInEx">
       <HintPath>refs/BepInEx.dll</HintPath>
       <Private>false</Private>
     </Reference>
-
-    <!-- Valheim game assembly -->
-    <Reference Include="Assembly-CSharp">
-      <HintPath>refs/Assembly-CSharp.dll</HintPath>
+    <Reference Include="assembly_valheim">
+      <HintPath>refs/assembly_valheim.dll</HintPath>
       <Private>false</Private>
     </Reference>
-
-    <!-- Harmony from BepInEx pack -->
-    <Reference Include="0Harmony">
-      <HintPath>refs/0Harmony.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-
-    <!-- Unity -->
     <Reference Include="UnityEngine">
       <HintPath>refs/UnityEngine.dll</HintPath>
       <Private>false</Private>
     </Reference>
-
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>refs/UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
-
   </ItemGroup>
 
 </Project>
