@@ -171,12 +171,8 @@ namespace CookingSkillFix
                             if (req?.m_resItem == null)
                                 continue;
 
-                            req.m_amount = req.m_resItem.name == "wood" ? 1 : 10;
+                            req.m_amount = req.m_resItem.name == "JVLmock_Wood" ? 1 : 10;
                             req.m_recover = true;
-
-                            Log.LogInfo(
-                                $"Piece req patched: {kv.Key} {req.m_resItem.name} -> {req.m_amount}"
-                            );
                         }
                     }
 
