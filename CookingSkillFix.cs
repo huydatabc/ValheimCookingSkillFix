@@ -180,16 +180,30 @@ namespace CookingSkillFix
         }
     }
 
-    [HarmonyPatch(typeof(WearNTear), "OnDestroyed")]
-    public static class ForceContainerDropPatch
+    [HarmonyPatch(typeof(Piece), "OnDestroyed")]
+    public static class PieceDestroyedPatch
     {
-        static void Postfix(WearNTear __instance)
+        static void Prefix(Piece __instance)
         {
-            Container container = __instance?.GetComponent<Container>();
-            if (container != null)
+            if (__instance == null) return;
+            Plugin.Log.LogInfo($"Piece.OnDestroyed fired: {__instance?.name}");
+
+            Container container = __instance.GetComponent<Container>();
+            if (container == null) return;
+
+            Inventory inv = container.GetInventory();
+            if (inv == null) return;
+
+            Vector3 pos = __instance.transform.position + Vector3.up;
+
+            List<ItemDrop.ItemData> items = new List<ItemDrop.ItemData>(inv.GetAllItems());
+
+            foreach (var item in items)
             {
-                container.DropAllItems();
+                ItemDrop.DropItem(item, 0f, pos, Quaternion.identity);
             }
+
+            inv.RemoveAll();
         }
     }
 
