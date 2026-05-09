@@ -33,128 +33,180 @@ namespace CookingSkillFix
             return BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey(guid);
         }
 
-    internal static void RegisterValharvestBoxes()
-    {
-        try
+        internal static void RegisterValharvestBoxes()
         {
-            Assembly odinAssembly = null;
-
-            foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
+            try
             {
-                if (asm.GetName().Name == "OdinsFoodBarrels")
+                Assembly odinAssembly = null;
+
+                foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
                 {
-                    odinAssembly = asm;
-                    break;
-                }
-            }
-
-            if (odinAssembly == null)
-            {
-                Log.LogWarning("OdinsFoodBarrels assembly not found.");
-                return;
-            }
-
-            Type pluginType = odinAssembly.GetType("OdinsFoodBarrels.OdinsFoodBarrelsPlugin");
-            Type restrictType = odinAssembly.GetType("OdinsFoodBarrels.RestrictContainers");
-
-            FieldInfo dictField = pluginType?.GetField(
-                "ContainerRestrictions",
-                BindingFlags.Public |
-                BindingFlags.NonPublic |
-                BindingFlags.Static
-            );
-
-            MethodInfo setMethod = restrictType?.GetMethod(
-                "SetContainerRestrictions",
-                BindingFlags.Public |
-                BindingFlags.NonPublic |
-                BindingFlags.Static
-            );
-
-            var dict = dictField?.GetValue(null) as Dictionary<string, HashSet<string>>;
-
-            if (dict == null || setMethod == null)
-            {
-                Log.LogWarning("Odin reflection failed.");
-                return;
-            }
-
-            Dictionary<string, string> boxes = new Dictionary<string, string>
-            {
-                { "piece_garlicBox", "Garlic" },
-                { "piece_pepperBox", "Pepper" },
-                { "piece_potatoBox", "Potato" },
-                { "piece_tomatoBox", "Tomato" },
-                { "piece_saltBox", "Salt" },
-                { "piece_appleBox", "Apple" }
-            };
-
-            // -------------------------
-            // 1. RESTRICTIONS
-            // -------------------------
-            foreach (var kv in boxes)
-            {
-                dict[kv.Key] = new HashSet<string> { kv.Value };
-            }
-
-            // -------------------------
-            // 2. RECIPES (ObjectDB)
-            // -------------------------
-            if (ObjectDB.instance != null)
-            {
-                foreach (Recipe recipe in ObjectDB.instance.m_recipes)
-                {
-                    if (recipe?.m_item == null || recipe.m_resources == null)
-                        continue;
-
-                    foreach (var kv in boxes)
+                    if (asm.GetName().Name == "OdinsFoodBarrels")
                     {
-                        if (recipe.m_item.name != kv.Key)
-                            continue;
-
-                        foreach (Piece.Requirement req in recipe.m_resources)
-                        {
-                            if (req?.m_resItem == null)
-                                continue;
-
-                            if (req.m_resItem.name == "Wood")
-                                req.m_amount = 1;
-                            else
-                                req.m_amount = 10;
-
-                            req.m_recover = true;
-
-                            Log.LogInfo(
-                                $"Recipe patched: {kv.Key} {req.m_resItem.name} -> {req.m_amount}"
-                            );
-                        }
+                        odinAssembly = asm;
+                        break;
                     }
                 }
-            }
 
-            // -------------------------
-            // 3. UI ONLY
-            // -------------------------
-            foreach (var kv in boxes)
+                if (odinAssembly == null)
+                {
+                    Log.LogWarning("OdinsFoodBarrels assembly not found.");
+                    return;
+                }
+
+                Type pluginType =
+                    odinAssembly.GetType("OdinsFoodBarrels.OdinsFoodBarrelsPlugin");
+
+                Type restrictType =
+                    odinAssembly.GetType("OdinsFoodBarrels.RestrictContainers");
+
+                if (pluginType == null || restrictType == null)
+                {
+                    Log.LogWarning("Odin types not found.");
+                    return;
+                }
+
+                FieldInfo dictField = pluginType.GetField(
+                    "ContainerRestrictions",
+                    BindingFlags.Public |
+                    BindingFlags.NonPublic |
+                    BindingFlags.Static
+                );
+
+                MethodInfo setMethod = restrictType.GetMethod(
+                    "SetContainerRestrictions",
+                    BindingFlags.Public |
+                    BindingFlags.NonPublic |
+                    BindingFlags.Static
+                );
+
+                if (dictField == null || setMethod == null)
+                {
+                    Log.LogWarning("Reflection targets missing.");
+                    return;
+                }
+
+                var dict =
+                    dictField.GetValue(null)
+                    as Dictionary<string, HashSet<string>>;
+
+                if (dict == null)
+                {
+                    Log.LogWarning("ContainerRestrictions is null.");
+                    return;
+                }
+
+                Dictionary<string, string> boxes =
+                    new Dictionary<string, string>
+                {
+                    { "piece_garlicBox", "Garlic" },
+                    { "piece_pepperBox", "Pepper" },
+                    { "piece_potatoBox", "Potato" },
+                    { "piece_tomatoBox", "Tomato" },
+                    { "piece_saltBox", "Salt" },
+                    { "piece_appleBox", "Apple" }
+                };
+
+                foreach (var kv in boxes)
+                {
+                    // -------------------------
+                    // Odin restriction fix
+                    // -------------------------
+                    dict[kv.Value] = new HashSet<string> { kv.Value };
+
+                    // -------------------------
+                    // Prefab / container UI
+                    // -------------------------
+                    GameObject prefab = ZNetScene.instance?.GetPrefab(kv.Key);
+
+                    if (prefab == null)
+                    {
+                        Log.LogWarning($"Prefab not found: {kv.Key}");
+                        continue;
+                    }
+
+                    Container container = prefab.GetComponent<Container>();
+
+                    if (container == null)
+                    {
+                        GameObject chestPrefab =
+                            ZNetScene.instance.GetPrefab("piece_chest");
+
+                        if (chestPrefab != null)
+                        {
+                            Container chestContainer =
+                                chestPrefab.GetComponent<Container>();
+
+                            if (chestContainer != null)
+                            {
+                                container = prefab.AddComponent<Container>();
+
+                                container.m_width = 6;
+                                container.m_height = 2;
+                                container.m_checkGuardStone = false;
+
+                                Log.LogInfo($"Added Container component to {kv.Key}");
+                            }
+                        }
+                        else
+                        {
+                            Log.LogWarning("piece_chest prefab not found");
+                        }
+                    }
+
+                    if (container != null)
+                    {
+                        container.m_name = $"{kv.Value} Box";
+                    }
+
+                    // -------------------------
+                    // Recipe fix (ObjectDB)
+                    // -------------------------
+                    if (ObjectDB.instance != null && ObjectDB.instance.m_recipes != null)
+                    {
+                        foreach (Recipe recipe in ObjectDB.instance.m_recipes)
+                        {
+                            if (recipe?.m_item == null)
+                                continue;
+
+                            if (recipe.m_item.name != kv.Key)
+                                continue;
+
+                            if (recipe.m_resources == null)
+                                continue;
+
+                            foreach (Piece.Requirement req in recipe.m_resources)
+                            {
+                                if (req?.m_resItem == null)
+                                    continue;
+
+                                if (req.m_resItem.name == "Wood")
+                                    req.m_amount = 1;
+                                else
+                                    req.m_amount = 10;
+
+                                req.m_recover = true;
+
+                                Log.LogInfo(
+                                    $"Recipe patched: {kv.Key} {req.m_resItem.name} -> {req.m_amount}"
+                                );
+                            }
+                        }
+                    }
+
+                    Log.LogInfo(
+                        $"Registered Odin container: {kv.Key} -> {kv.Value}"
+                    );
+                }
+
+                setMethod.Invoke(null, new object[] { dict });
+
+                Log.LogInfo("Valharvest Odin integration complete.");
+            }
+            catch (Exception ex)
             {
-                GameObject prefab = ZNetScene.instance?.GetPrefab(kv.Key);
-                if (prefab == null)
-                    continue;
-
-                Container container = prefab.GetComponent<Container>();
-                if (container == null)
-                    continue;
-
-                container.m_name = $"{kv.Value} Box";
+                Log.LogError(ex);
             }
-
-            setMethod.Invoke(null, new object[] { dict });
-
-            Log.LogInfo("Valharvest Odin integration complete.");
-        }
-        catch (Exception ex)
-        {
-            Log.LogError(ex);
         }
     }
 
