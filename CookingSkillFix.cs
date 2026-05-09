@@ -109,99 +109,105 @@ namespace CookingSkillFix
 
                 foreach (var kv in boxes)
                 {
-                    // Odin restriction registration
-                    dict[kv.Key] =
-                        new HashSet<string> { kv.Value };
-
-                    // Reduce recipe cost from 50 -> 10
-                    GameObject prefab = ZNetScene.instance?.GetPrefab(kv.Key);
-
-                    if (prefab == null)
+                    try
                     {
-                        Log.LogWarning($"Prefab not found: {kv.Key}");
-                        continue;
-                    }
+                        string itemId = kv.Key;
+                        string allowedItem = kv.Value;
 
-                    Container container = prefab.GetComponent<Container>();
+                        // ----------------------------
+                        // 1. ODIN RESTRICTIONS (FIXED KEY)
+                        // ----------------------------
+                        dict[itemId] = new HashSet<string> { allowedItem };
 
-                    if (container == null)
-                    {
-                        GameObject chestPrefab =
-                            ZNetScene.instance.GetPrefab("piece_chest");
+                        // ----------------------------
+                        // 2. PREFAB (ONLY FOR CONTAINER UI)
+                        // ----------------------------
+                        GameObject prefab = ZNetScene.instance?.GetPrefab(itemId);
 
-                        if (chestPrefab == null)
+                        if (prefab == null)
                         {
-                            Log.LogWarning("piece_chest prefab not found");
+                            Log.LogWarning($"Prefab not found: {itemId}");
+                            continue;
                         }
-                        else
+
+                        Container container = prefab.GetComponent<Container>();
+
+                        if (container == null)
                         {
-                            Container chestContainer =
-                                chestPrefab.GetComponent<Container>();
+                            GameObject chestPrefab = ZNetScene.instance?.GetPrefab("piece_chest");
 
-                            if (chestContainer != null)
+                            if (chestPrefab != null)
                             {
-                                container = prefab.AddComponent<Container>();
+                                Container chestTemplate = chestPrefab.GetComponent<Container>();
 
-                                container.m_name = $"{kv.Value} Box";
-                                container.m_width = 6;
-                                container.m_height = 2;
-                                container.m_checkGuardStone = false;
+                                if (chestTemplate != null)
+                                {
+                                    container = prefab.AddComponent<Container>();
+                                    container.m_width = chestTemplate.m_width;
+                                    container.m_height = chestTemplate.m_height;
+                                    container.m_checkGuardStone = false;
 
-                                Log.LogInfo(
-                                    $"Added Container component to {kv.Key}"
-                                );
+                                    Log.LogInfo($"Added Container component to {itemId}");
+                                }
                             }
                         }
-                    }
-                    else
-                    {
-                        Log.LogInfo($"{kv.Key} container exists");
-                    }
 
-                    Recipe recipe = prefab.GetComponent<Recipe>();
+                        // UI ONLY (DO NOT USE FOR LOGIC)
+                        if (container != null)
+                        {
+                            container.m_name = $"{allowedItem} Box";
+                        }
 
-                    if (recipe == null)
-                    {
-                        Log.LogWarning($"No Recipe on: {kv.Key}");
-                        continue;
-                    }
-
-                    if (recipe.m_resources == null)
-                    {
-                        Log.LogWarning($"No resources on recipe: {kv.Key}");
-                        continue;
-                    }
-
-                    foreach (Piece.Requirement req in recipe.m_resources)
-                    {
-                        if (req == null || req.m_resItem == null)
+                        // ----------------------------
+                        // 3. RECIPES (CORRECT SOURCE)
+                        // ----------------------------
+                        if (ObjectDB.instance == null || ObjectDB.instance.m_recipes == null)
+                        {
+                            Log.LogWarning("ObjectDB not ready yet");
                             continue;
+                        }
 
-                        string itemName = req.m_resItem.name;
+                        foreach (Recipe recipe in ObjectDB.instance.m_recipes)
+                        {
+                            if (recipe?.m_item == null)
+                                continue;
 
-                        if (itemName == "Wood")
-                            req.m_amount = 1;
-                        else
-                            req.m_amount = 10;
+                            if (recipe.m_item.name != itemId)
+                                continue;
 
-                        req.m_recover = true;
+                            if (recipe.m_resources == null)
+                                continue;
 
-                        Log.LogInfo($"Recipe patched: {kv.Key} {itemName} -> {req.m_amount}");
+                            foreach (Piece.Requirement req in recipe.m_resources)
+                            {
+                                if (req?.m_resItem == null)
+                                    continue;
+
+                                string resName = req.m_resItem.name;
+
+                                if (resName == "Wood")
+                                    req.m_amount = 1;
+                                else
+                                    req.m_amount = 10;
+
+                                req.m_recover = true;
+
+                                Log.LogInfo($"Recipe patched: {itemId} {resName} -> {req.m_amount}");
+                            }
+                        }
+
+                        Log.LogInfo($"Registered box: {itemId} -> {allowedItem}");
                     }
-
-                    Log.LogInfo(
-                        $"Registered Odin container: {kv.Key} -> {kv.Value}"
-                    );
+                    catch (Exception ex)
+                    {
+                        Log.LogError(ex);
+                    }
                 }
 
+                // apply Odin dictionary update
                 setMethod.Invoke(null, new object[] { dict });
 
                 Log.LogInfo("Valharvest Odin integration complete.");
-            }
-            catch (Exception ex)
-            {
-                Log.LogError(ex);
-            }
         }
     }
 
