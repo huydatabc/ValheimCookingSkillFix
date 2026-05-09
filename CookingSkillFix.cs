@@ -99,12 +99,12 @@ namespace CookingSkillFix
                 Dictionary<string, string> boxes =
                     new Dictionary<string, string>
                 {
-                    { "piece_garlicBox", "Garlic" },
-                    { "piece_pepperBox", "Pepper" },
-                    { "piece_potatoBox", "Potato" },
-                    { "piece_tomatoBox", "Tomato" },
-                    { "piece_saltBox", "Salt" },
-                    { "piece_appleBox", "Apple" }
+                    { "piece_garlicBox", "garlic" },
+                    { "piece_pepperBox", "pepper" },
+                    { "piece_potatoBox", "potato" },
+                    { "piece_tomatoBox", "tomato" },
+                    { "piece_saltBox", "salt" },
+                    { "piece_appleBox", "apple" }
                 };
 
                 foreach (var kv in boxes)
@@ -151,7 +151,7 @@ namespace CookingSkillFix
 
                     if (container != null)
                     {
-                        string containerName = $"{kv.Value} Box";
+                        string containerName = $"{char.ToUpper(kv.Value[0])}{kv.Value.Substring(1)} Box";
                         container.m_name = containerName;
 
                         // -------------------------
@@ -171,7 +171,7 @@ namespace CookingSkillFix
                             if (req?.m_resItem == null)
                                 continue;
 
-                            req.m_amount = req.m_resItem.name == "Wood" ? 1 : 10;
+                            req.m_amount = req.m_resItem.name == "wood" ? 1 : 10;
                             req.m_recover = true;
 
                             Log.LogInfo(
@@ -278,8 +278,6 @@ namespace CookingSkillFix
                     return;
 
                 string name = station.gameObject.name;
-
-                Plugin.Log.LogInfo($"Craft station: {name}");
 
                 if (
                     name.Contains("piece_prep_table") ||
