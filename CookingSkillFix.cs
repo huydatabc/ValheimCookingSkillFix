@@ -110,11 +110,6 @@ namespace CookingSkillFix
                 foreach (var kv in boxes)
                 {
                     // -------------------------
-                    // Odin restriction fix
-                    // -------------------------
-                    dict[kv.Key] = new HashSet<string> { kv.Value };
-
-                    // -------------------------
                     // Prefab / container UI
                     // -------------------------
                     GameObject prefab = ZNetScene.instance?.GetPrefab(kv.Key);
@@ -156,41 +151,32 @@ namespace CookingSkillFix
 
                     if (container != null)
                     {
-                        container.m_name = $"{kv.Value} Box";
+                        string containerName = $"{kv.Value} Box";
+                        container.m_name = containerName;
+
+                        // -------------------------
+                        // Odin restriction fix
+                        // -------------------------
+                        dict[containerName] = new HashSet<string> { kv.Value };
                     }
 
                     // -------------------------
-                    // Recipe fix (ObjectDB)
+                    // Recipe fix (Piece requirements)
                     // -------------------------
-                    if (ObjectDB.instance != null && ObjectDB.instance.m_recipes != null)
+                    Piece piece = prefab.GetComponent<Piece>();
+                    if (piece?.m_resources != null)
                     {
-                        foreach (Recipe recipe in ObjectDB.instance.m_recipes)
+                        foreach (Piece.Requirement req in piece.m_resources)
                         {
-                            if (recipe?.m_item == null)
+                            if (req?.m_resItem == null)
                                 continue;
 
-                            if (!recipe.m_item.name.ToLower().Contains(kv.Value.ToLower()))
-                                continue;
+                            req.m_amount = req.m_resItem.name == "Wood" ? 1 : 10;
+                            req.m_recover = true;
 
-                            if (recipe.m_resources == null)
-                                continue;
-
-                            foreach (Piece.Requirement req in recipe.m_resources)
-                            {
-                                if (req?.m_resItem == null)
-                                    continue;
-
-                                if (req.m_resItem.name == "Wood")
-                                    req.m_amount = 1;
-                                else
-                                    req.m_amount = 10;
-
-                                req.m_recover = true;
-
-                                Log.LogInfo(
-                                    $"Recipe patched: {kv.Key} {req.m_resItem.name} -> {req.m_amount}"
-                                );
-                            }
+                            Log.LogInfo(
+                                $"Piece req patched: {kv.Key} {req.m_resItem.name} -> {req.m_amount}"
+                            );
                         }
                     }
 
