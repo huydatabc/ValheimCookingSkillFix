@@ -189,7 +189,7 @@ namespace CookingSkillFix
             if (container == null) return;
             if (!Plugin.ValharvestBoxes.ContainsValue(container.m_name.Replace(" Box", "").ToLower())) return;
 
-            container.DropAllItems();
+            __instance.DropAllItems();
         }
     }
 
