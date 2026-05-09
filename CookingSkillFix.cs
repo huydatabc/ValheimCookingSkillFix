@@ -136,6 +136,12 @@ namespace CookingSkillFix
                                 container.m_height = 2;
                                 container.m_checkGuardStone = false;
                                 container.m_destroyedLootPrefab = chestContainer.m_destroyedLootPrefab;
+                                WearNTear chestWNT = chestPrefab.GetComponent<WearNTear>();
+                                WearNTear wnt = prefab.AddComponent<WearNTear>();
+                                foreach (FieldInfo field in typeof(WearNTear).GetFields(BindingFlags.Public | BindingFlags.Instance))
+                                {
+                                    field.SetValue(wnt, field.GetValue(chestWNT));
+                                }
 
                                 Log.LogInfo($"Added Container component to {kv.Key}");
                             }
