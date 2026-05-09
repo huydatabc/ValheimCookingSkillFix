@@ -208,6 +208,7 @@ namespace CookingSkillFix
                 setMethod.Invoke(null, new object[] { dict });
 
                 Log.LogInfo("Valharvest Odin integration complete.");
+            }
         }
     }
 
