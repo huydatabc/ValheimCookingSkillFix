@@ -54,50 +54,32 @@ namespace CookingSkillFix
                     return;
                 }
 
-                Type pluginType =
-                    odinAssembly.GetType("OdinsFoodBarrels.OdinsFoodBarrelsPlugin");
+                Type pluginType = odinAssembly.GetType("OdinsFoodBarrels.OdinsFoodBarrelsPlugin");
+                Type restrictType = odinAssembly.GetType("OdinsFoodBarrels.RestrictContainers");
 
-                Type restrictType =
-                    odinAssembly.GetType("OdinsFoodBarrels.RestrictContainers");
-
-                if (pluginType == null || restrictType == null)
-                {
-                    Log.LogWarning("Odin types not found.");
-                    return;
-                }
-
-                FieldInfo dictField = pluginType.GetField(
+                FieldInfo dictField = pluginType?.GetField(
                     "ContainerRestrictions",
                     BindingFlags.Public |
                     BindingFlags.NonPublic |
                     BindingFlags.Static
                 );
 
-                MethodInfo setMethod = restrictType.GetMethod(
+                MethodInfo setMethod = restrictType?.GetMethod(
                     "SetContainerRestrictions",
                     BindingFlags.Public |
                     BindingFlags.NonPublic |
                     BindingFlags.Static
                 );
 
-                if (dictField == null || setMethod == null)
+                var dict = dictField?.GetValue(null) as Dictionary<string, HashSet<string>>;
+
+                if (dict == null || setMethod == null)
                 {
-                    Log.LogWarning("Reflection targets missing.");
+                    Log.LogWarning("Odin reflection failed.");
                     return;
                 }
 
-                var dict =
-                    dictField.GetValue(null)
-                    as Dictionary<string, HashSet<string>>;
-
-                if (dict == null)
-                {
-                    Log.LogWarning("ContainerRestrictions is null.");
-                    return;
-                }
-
-                Dictionary<string, string> boxes =
-                    new Dictionary<string, string>
+                Dictionary<string, string> boxes = new()
                 {
                     { "piece_garlicBox", "Garlic" },
                     { "piece_pepperBox", "Pepper" },
@@ -107,110 +89,85 @@ namespace CookingSkillFix
                     { "piece_appleBox", "Apple" }
                 };
 
+                // ----------------------------
+                // 1. RESTRICTIONS (FIXED KEY USAGE)
+                // ----------------------------
                 foreach (var kv in boxes)
                 {
-                    try
+                    dict[kv.Key] = new HashSet<string> { kv.Value };
+                }
+
+                // ----------------------------
+                // 2. RECIPES (REAL SOURCE OF TRUTH)
+                // ----------------------------
+                if (ObjectDB.instance == null)
+                {
+                    Log.LogWarning("ObjectDB not ready.");
+                    return;
+                }
+
+                foreach (Recipe recipe in ObjectDB.instance.m_recipes)
+                {
+                    if (recipe?.m_item == null)
+                        continue;
+
+                    foreach (var kv in boxes)
                     {
-                        string itemId = kv.Key;
-                        string allowedItem = kv.Value;
-
-                        // ----------------------------
-                        // 1. ODIN RESTRICTIONS (FIXED KEY)
-                        // ----------------------------
-                        dict[itemId] = new HashSet<string> { allowedItem };
-
-                        // ----------------------------
-                        // 2. PREFAB (ONLY FOR CONTAINER UI)
-                        // ----------------------------
-                        GameObject prefab = ZNetScene.instance?.GetPrefab(itemId);
-
-                        if (prefab == null)
-                        {
-                            Log.LogWarning($"Prefab not found: {itemId}");
+                        if (recipe.m_item.name != kv.Key)
                             continue;
-                        }
 
-                        Container container = prefab.GetComponent<Container>();
-
-                        if (container == null)
-                        {
-                            GameObject chestPrefab = ZNetScene.instance?.GetPrefab("piece_chest");
-
-                            if (chestPrefab != null)
-                            {
-                                Container chestTemplate = chestPrefab.GetComponent<Container>();
-
-                                if (chestTemplate != null)
-                                {
-                                    container = prefab.AddComponent<Container>();
-                                    container.m_width = chestTemplate.m_width;
-                                    container.m_height = chestTemplate.m_height;
-                                    container.m_checkGuardStone = false;
-
-                                    Log.LogInfo($"Added Container component to {itemId}");
-                                }
-                            }
-                        }
-
-                        // UI ONLY (DO NOT USE FOR LOGIC)
-                        if (container != null)
-                        {
-                            container.m_name = $"{allowedItem} Box";
-                        }
-
-                        // ----------------------------
-                        // 3. RECIPES (CORRECT SOURCE)
-                        // ----------------------------
-                        if (ObjectDB.instance == null || ObjectDB.instance.m_recipes == null)
-                        {
-                            Log.LogWarning("ObjectDB not ready yet");
+                        if (recipe.m_resources == null)
                             continue;
-                        }
 
-                        foreach (Recipe recipe in ObjectDB.instance.m_recipes)
+                        foreach (Piece.Requirement req in recipe.m_resources)
                         {
-                            if (recipe?.m_item == null)
+                            if (req?.m_resItem == null)
                                 continue;
 
-                            if (recipe.m_item.name != itemId)
-                                continue;
+                            if (req.m_resItem.name == "Wood")
+                                req.m_amount = 1;
+                            else
+                                req.m_amount = 10;
 
-                            if (recipe.m_resources == null)
-                                continue;
+                            req.m_recover = true;
 
-                            foreach (Piece.Requirement req in recipe.m_resources)
-                            {
-                                if (req?.m_resItem == null)
-                                    continue;
-
-                                string resName = req.m_resItem.name;
-
-                                if (resName == "Wood")
-                                    req.m_amount = 1;
-                                else
-                                    req.m_amount = 10;
-
-                                req.m_recover = true;
-
-                                Log.LogInfo($"Recipe patched: {itemId} {resName} -> {req.m_amount}");
-                            }
+                            Log.LogInfo(
+                                $"Recipe patched: {kv.Key} {req.m_resItem.name} -> {req.m_amount}"
+                            );
                         }
-
-                        Log.LogInfo($"Registered box: {itemId} -> {allowedItem}");
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.LogError(ex);
                     }
                 }
 
-                // apply Odin dictionary update
+                // ----------------------------
+                // 3. PREFAB UI ONLY (SAFE)
+                // ----------------------------
+                foreach (var kv in boxes)
+                {
+                    GameObject prefab = ZNetScene.instance?.GetPrefab(kv.Key);
+
+                    if (prefab == null)
+                        continue;
+
+                    Container container = prefab.GetComponent<Container>();
+
+                    if (container == null)
+                        continue;
+
+                    // UI ONLY — never used for logic
+                    container.m_name = $"{kv.Value} Box";
+
+                    Log.LogInfo($"UI set: {kv.Key} -> {container.m_name}");
+                }
+
                 setMethod.Invoke(null, new object[] { dict });
 
                 Log.LogInfo("Valharvest Odin integration complete.");
             }
+            catch (Exception ex)
+            {
+                Log.LogError(ex);
+            }
         }
-    }
 
    [HarmonyPatch(typeof(ZNetScene), "Awake")]
     public static class ZNetScenePatch
