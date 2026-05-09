@@ -180,33 +180,6 @@ namespace CookingSkillFix
         }
     }
 
-    [HarmonyPatch(typeof(Piece), "OnDestroyed")]
-    public static class PieceDestroyedPatch
-    {
-        static void Prefix(Piece __instance)
-        {
-            if (__instance == null) return;
-            Plugin.Log.LogInfo($"Piece.OnDestroyed fired: {__instance?.name}");
-
-            Container container = __instance.GetComponent<Container>();
-            if (container == null) return;
-
-            Inventory inv = container.GetInventory();
-            if (inv == null) return;
-
-            Vector3 pos = __instance.transform.position + Vector3.up;
-
-            List<ItemDrop.ItemData> items = new List<ItemDrop.ItemData>(inv.GetAllItems());
-
-            foreach (var item in items)
-            {
-                ItemDrop.DropItem(item, 0, pos, Quaternion.identity);
-            }
-
-            inv.RemoveAll();
-        }
-    }
-
     [HarmonyPatch(typeof(ZNetScene), "Awake")]
     public static class ZNetScenePatch
     {
