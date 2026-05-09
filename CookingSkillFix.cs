@@ -200,7 +200,7 @@ namespace CookingSkillFix
 
             foreach (var item in items)
             {
-                ItemDrop.DropItem(item, 0f, pos, Quaternion.identity);
+                ItemDrop.DropItem(item, 0, pos, Quaternion.identity);
             }
 
             inv.RemoveAll();
