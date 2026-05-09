@@ -180,16 +180,16 @@ namespace CookingSkillFix
         }
     }
 
-    [HarmonyPatch(typeof(Piece), "DropAllItems")]
-    public static class PieceDropAllItemsPatch
+    [HarmonyPatch(typeof(Player), "RemovePiece")]
+    public static class PlayerRemovePiecePatch
     {
-        private static void Prefix(Piece __instance)
+        private static void Prefix(Player __instance)
         {
-            Container container = __instance.GetComponent<Container>();
-            if (container == null) return;
-            if (!Plugin.ValharvestBoxes.ContainsValue(container.m_name.Replace(" Box", "").ToLower())) return;
+            Type restrictType = AccessTools.TypeByName("OdinsFoodBarrels.RestrictContainers");
+            if (restrictType == null) return;
 
-            __instance.DropAllItems();
+            AccessTools.Field(restrictType, "_targetContainer")?.SetValue(null, null);
+            AccessTools.Field(restrictType, "_allowedItems")?.SetValue(null, null);
         }
     }
 
