@@ -33,90 +33,83 @@ namespace CookingSkillFix
             return BepInEx.Bootstrap.Chainloader.PluginInfos.ContainsKey(guid);
         }
 
-        internal static void RegisterValharvestBoxes()
+    internal static void RegisterValharvestBoxes()
+    {
+        try
         {
-            try
+            Assembly odinAssembly = null;
+
+            foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
             {
-                Assembly odinAssembly = null;
-
-                foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
+                if (asm.GetName().Name == "OdinsFoodBarrels")
                 {
-                    if (asm.GetName().Name == "OdinsFoodBarrels")
-                    {
-                        odinAssembly = asm;
-                        break;
-                    }
+                    odinAssembly = asm;
+                    break;
                 }
+            }
 
-                if (odinAssembly == null)
-                {
-                    Log.LogWarning("OdinsFoodBarrels assembly not found.");
-                    return;
-                }
+            if (odinAssembly == null)
+            {
+                Log.LogWarning("OdinsFoodBarrels assembly not found.");
+                return;
+            }
 
-                Type pluginType = odinAssembly.GetType("OdinsFoodBarrels.OdinsFoodBarrelsPlugin");
-                Type restrictType = odinAssembly.GetType("OdinsFoodBarrels.RestrictContainers");
+            Type pluginType = odinAssembly.GetType("OdinsFoodBarrels.OdinsFoodBarrelsPlugin");
+            Type restrictType = odinAssembly.GetType("OdinsFoodBarrels.RestrictContainers");
 
-                FieldInfo dictField = pluginType?.GetField(
-                    "ContainerRestrictions",
-                    BindingFlags.Public |
-                    BindingFlags.NonPublic |
-                    BindingFlags.Static
-                );
+            FieldInfo dictField = pluginType?.GetField(
+                "ContainerRestrictions",
+                BindingFlags.Public |
+                BindingFlags.NonPublic |
+                BindingFlags.Static
+            );
 
-                MethodInfo setMethod = restrictType?.GetMethod(
-                    "SetContainerRestrictions",
-                    BindingFlags.Public |
-                    BindingFlags.NonPublic |
-                    BindingFlags.Static
-                );
+            MethodInfo setMethod = restrictType?.GetMethod(
+                "SetContainerRestrictions",
+                BindingFlags.Public |
+                BindingFlags.NonPublic |
+                BindingFlags.Static
+            );
 
-                var dict = dictField?.GetValue(null) as Dictionary<string, HashSet<string>>;
+            var dict = dictField?.GetValue(null) as Dictionary<string, HashSet<string>>;
 
-                if (dict == null || setMethod == null)
-                {
-                    Log.LogWarning("Odin reflection failed.");
-                    return;
-                }
+            if (dict == null || setMethod == null)
+            {
+                Log.LogWarning("Odin reflection failed.");
+                return;
+            }
 
-                Dictionary<string, string> boxes = new()
-                {
-                    { "piece_garlicBox", "Garlic" },
-                    { "piece_pepperBox", "Pepper" },
-                    { "piece_potatoBox", "Potato" },
-                    { "piece_tomatoBox", "Tomato" },
-                    { "piece_saltBox", "Salt" },
-                    { "piece_appleBox", "Apple" }
-                };
+            Dictionary<string, string> boxes = new Dictionary<string, string>
+            {
+                { "piece_garlicBox", "Garlic" },
+                { "piece_pepperBox", "Pepper" },
+                { "piece_potatoBox", "Potato" },
+                { "piece_tomatoBox", "Tomato" },
+                { "piece_saltBox", "Salt" },
+                { "piece_appleBox", "Apple" }
+            };
 
-                // ----------------------------
-                // 1. RESTRICTIONS (FIXED KEY USAGE)
-                // ----------------------------
-                foreach (var kv in boxes)
-                {
-                    dict[kv.Key] = new HashSet<string> { kv.Value };
-                }
+            // -------------------------
+            // 1. RESTRICTIONS
+            // -------------------------
+            foreach (var kv in boxes)
+            {
+                dict[kv.Key] = new HashSet<string> { kv.Value };
+            }
 
-                // ----------------------------
-                // 2. RECIPES (REAL SOURCE OF TRUTH)
-                // ----------------------------
-                if (ObjectDB.instance == null)
-                {
-                    Log.LogWarning("ObjectDB not ready.");
-                    return;
-                }
-
+            // -------------------------
+            // 2. RECIPES (ObjectDB)
+            // -------------------------
+            if (ObjectDB.instance != null)
+            {
                 foreach (Recipe recipe in ObjectDB.instance.m_recipes)
                 {
-                    if (recipe?.m_item == null)
+                    if (recipe?.m_item == null || recipe.m_resources == null)
                         continue;
 
                     foreach (var kv in boxes)
                     {
                         if (recipe.m_item.name != kv.Key)
-                            continue;
-
-                        if (recipe.m_resources == null)
                             continue;
 
                         foreach (Piece.Requirement req in recipe.m_resources)
@@ -137,37 +130,33 @@ namespace CookingSkillFix
                         }
                     }
                 }
-
-                // ----------------------------
-                // 3. PREFAB UI ONLY (SAFE)
-                // ----------------------------
-                foreach (var kv in boxes)
-                {
-                    GameObject prefab = ZNetScene.instance?.GetPrefab(kv.Key);
-
-                    if (prefab == null)
-                        continue;
-
-                    Container container = prefab.GetComponent<Container>();
-
-                    if (container == null)
-                        continue;
-
-                    // UI ONLY — never used for logic
-                    container.m_name = $"{kv.Value} Box";
-
-                    Log.LogInfo($"UI set: {kv.Key} -> {container.m_name}");
-                }
-
-                setMethod.Invoke(null, new object[] { dict });
-
-                Log.LogInfo("Valharvest Odin integration complete.");
             }
-            catch (Exception ex)
+
+            // -------------------------
+            // 3. UI ONLY
+            // -------------------------
+            foreach (var kv in boxes)
             {
-                Log.LogError(ex);
+                GameObject prefab = ZNetScene.instance?.GetPrefab(kv.Key);
+                if (prefab == null)
+                    continue;
+
+                Container container = prefab.GetComponent<Container>();
+                if (container == null)
+                    continue;
+
+                container.m_name = $"{kv.Value} Box";
             }
+
+            setMethod.Invoke(null, new object[] { dict });
+
+            Log.LogInfo("Valharvest Odin integration complete.");
         }
+        catch (Exception ex)
+        {
+            Log.LogError(ex);
+        }
+    }
 
    [HarmonyPatch(typeof(ZNetScene), "Awake")]
     public static class ZNetScenePatch
