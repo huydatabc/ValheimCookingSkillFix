@@ -112,7 +112,7 @@ namespace CookingSkillFix
                     // -------------------------
                     // Odin restriction fix
                     // -------------------------
-                    dict[kv.Value] = new HashSet<string> { kv.Value };
+                    dict[kv.Key] = new HashSet<string> { kv.Value };
 
                     // -------------------------
                     // Prefab / container UI
@@ -169,7 +169,7 @@ namespace CookingSkillFix
                             if (recipe?.m_item == null)
                                 continue;
 
-                            if (recipe.m_item.name != kv.Key)
+                            if (!recipe.m_item.name.ToLower().Contains(kv.Value.ToLower()))
                                 continue;
 
                             if (recipe.m_resources == null)
