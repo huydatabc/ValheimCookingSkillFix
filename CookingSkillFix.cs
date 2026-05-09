@@ -20,6 +20,16 @@ namespace CookingSkillFix
 
         internal static ManualLogSource Log = null!;
 
+        internal static readonly Dictionary<string, string> ValharvestBoxes = new Dictionary<string, string>
+        {
+            { "piece_garlicBox", "garlic" },
+            { "piece_pepperBox", "pepper" },
+            { "piece_potatoBox", "potato" },
+            { "piece_tomatoBox", "tomato" },
+            { "piece_saltBox", "salt" },
+            { "piece_appleBox", "apple" }
+        };
+
         private void Awake()
         {
             Log = Logger;
@@ -96,22 +106,8 @@ namespace CookingSkillFix
                     return;
                 }
 
-                Dictionary<string, string> boxes =
-                    new Dictionary<string, string>
+                foreach (var kv in ValharvestBoxes)
                 {
-                    { "piece_garlicBox", "garlic" },
-                    { "piece_pepperBox", "pepper" },
-                    { "piece_potatoBox", "potato" },
-                    { "piece_tomatoBox", "tomato" },
-                    { "piece_saltBox", "salt" },
-                    { "piece_appleBox", "apple" }
-                };
-
-                foreach (var kv in boxes)
-                {
-                    // -------------------------
-                    // Prefab / container UI
-                    // -------------------------
                     GameObject prefab = ZNetScene.instance?.GetPrefab(kv.Key);
 
                     if (prefab == null)
@@ -154,16 +150,9 @@ namespace CookingSkillFix
                     {
                         string containerName = $"{char.ToUpper(kv.Value[0])}{kv.Value.Substring(1)} Box";
                         container.m_name = containerName;
-
-                        // -------------------------
-                        // Odin restriction fix
-                        // -------------------------
                         dict[containerName] = new HashSet<string> { kv.Value };
                     }
 
-                    // -------------------------
-                    // Recipe fix (Piece requirements)
-                    // -------------------------
                     Piece piece = prefab.GetComponent<Piece>();
                     if (piece?.m_resources != null)
                     {
@@ -177,9 +166,7 @@ namespace CookingSkillFix
                         }
                     }
 
-                    Log.LogInfo(
-                        $"Registered Odin container: {kv.Key} -> {kv.Value}"
-                    );
+                    Log.LogInfo($"Registered Odin container: {kv.Key} -> {kv.Value}");
                 }
 
                 setMethod.Invoke(null, new object[] { dict });
@@ -193,7 +180,20 @@ namespace CookingSkillFix
         }
     }
 
-   [HarmonyPatch(typeof(ZNetScene), "Awake")]
+    [HarmonyPatch(typeof(Piece), "DropAllItems")]
+    public static class PieceDropAllItemsPatch
+    {
+        private static void Prefix(Piece __instance)
+        {
+            Container container = __instance.GetComponent<Container>();
+            if (container == null) return;
+            if (!Plugin.ValharvestBoxes.ContainsValue(container.m_name.Replace(" Box", "").ToLower())) return;
+
+            container.DropAllItems();
+        }
+    }
+
+    [HarmonyPatch(typeof(ZNetScene), "Awake")]
     public static class ZNetScenePatch
     {
         private static void Postfix(ZNetScene __instance)
@@ -201,6 +201,7 @@ namespace CookingSkillFix
             StationFixer.Fix(__instance);
         }
     }
+
       public static class StationFixer
         {
             private static bool _done;
