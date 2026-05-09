@@ -139,6 +139,7 @@ namespace CookingSkillFix
                                 container.m_width = 6;
                                 container.m_height = 2;
                                 container.m_checkGuardStone = false;
+                                container.m_destroyedLootPrefab = chestContainer.m_destroyedLootPrefab;
 
                                 Log.LogInfo($"Added Container component to {kv.Key}");
                             }
